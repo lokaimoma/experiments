@@ -19,7 +19,7 @@ private:
   MemoryBlock *active_block{nullptr};
   Arena() = default;
   void clear();
-  void request_new_block(size_t cap);
+  bool request_new_block(size_t cap);
 
 public:
   Arena(const Arena &) = delete;

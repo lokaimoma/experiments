@@ -1,4 +1,7 @@
 #include "arena.h"
+#include <cstdio>
+#include <cstdlib>
+#include <optional>
 
 void Arena::clear() {
   MemoryBlock *current{head_of_blocks};
@@ -37,4 +40,73 @@ Arena &Arena::operator=(Arena &&a) noexcept {
   a.active_block = nullptr;
 
   return *this;
+}
+
+void Arena::reset() {
+  if (!head_of_blocks || head_of_blocks->start) {
+    return;
+  }
+
+  MemoryBlock *current{head_of_blocks};
+  while (current) {
+    current->cur = current->start;
+    current = current->next;
+  }
+
+  active_block = head_of_blocks;
+}
+
+std::optional<Arena> Arena::create() {
+  Arena a{};
+  if (!a.request_new_block(Arena::DEFAULT_BLOCK_SIZE)) {
+    return std::nullopt;
+  }
+  return a;
+}
+
+bool Arena::request_new_block(size_t cap) {
+  if (active_block && active_block->next) {
+    MemoryBlock *prev{active_block};
+    MemoryBlock *cur{active_block->next};
+
+    while (cur) {
+      size_t _cap{static_cast<size_t>(static_cast<char *>(cur->end) -
+                                      static_cast<char *>(cur->start))};
+
+      if (_cap > cap) {
+        if (prev != active_block) {
+          prev->next = cur->next;
+          cur->next = active_block->next;
+          active_block->next = cur;
+        }
+        active_block = cur;
+        return true;
+      }
+      prev = cur;
+      cur = cur->next;
+    }
+  }
+
+  MemoryBlock *block{new MemoryBlock{}};
+  block->start = malloc(cap);
+
+  if (!block->start) {
+    perror("request_new_block");
+    delete block;
+    return false;
+  }
+
+  block->cur = block->start;
+  block->end = static_cast<char *>(block->start) + cap;
+
+  if (!head_of_blocks) {
+    head_of_blocks = block;
+    active_block = block;
+    return true;
+  }
+
+  block->next = active_block->next;
+  active_block->next = block;
+  active_block = block;
+  return true;
 }
