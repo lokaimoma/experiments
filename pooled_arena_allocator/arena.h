@@ -1,5 +1,6 @@
 #pragma once
 #include <cstddef>
+#include <memory>
 #include <optional>
 
 namespace {
@@ -33,3 +34,28 @@ public:
   template <typename T> [[nodiscard]] T *alloc(size_t count);
   void reset();
 };
+
+template <typename T> [[nodiscard]] T *Arena::alloc(size_t count) {
+  if (!active_block || count <= 0) {
+    return nullptr;
+  }
+
+  size_t req_cap{sizeof(T) * count};
+  size_t avail_mem{static_cast<size_t>(static_cast<char *>(active_block->end) -
+                                       static_cast<char *>(active_block->cur))};
+
+  void *curpt_ptr{active_block->cur};
+  void *ptr{std::align(alignof(T), req_cap, curpt_ptr, avail_mem)};
+
+  if (!ptr) {
+    if (!request_new_block(req_cap > Arena::DEFAULT_BLOCK_SIZE
+                               ? req_cap
+                               : Arena::DEFAULT_BLOCK_SIZE)) {
+      return nullptr;
+    }
+    return alloc<T>(count);
+  }
+
+  active_block->cur = static_cast<char *>(curpt_ptr) + req_cap;
+  return static_cast<T *>(ptr);
+}
