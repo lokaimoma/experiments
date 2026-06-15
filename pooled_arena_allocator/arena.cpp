@@ -43,7 +43,7 @@ Arena &Arena::operator=(Arena &&a) noexcept {
 }
 
 void Arena::reset() {
-  if (!head_of_blocks || head_of_blocks->start) {
+  if (!head_of_blocks || !head_of_blocks->start) {
     return;
   }
 
@@ -73,7 +73,7 @@ bool Arena::request_new_block(size_t cap) {
       size_t _cap{static_cast<size_t>(static_cast<char *>(cur->end) -
                                       static_cast<char *>(cur->start))};
 
-      if (_cap > cap) {
+      if (_cap >= cap) {
         if (prev != active_block) {
           prev->next = cur->next;
           cur->next = active_block->next;
