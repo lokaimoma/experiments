@@ -14,7 +14,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(doctest)
 
-add_library(arena_lib arena.cpp arena.h)
+add_library(arena_lib arena.cpp arena.h objectpool.h)
 
 enable_testing()
 
@@ -22,9 +22,11 @@ add_executable(TestArena ./tests/test_arena.cpp)
 target_link_libraries(TestArena PRIVATE arena_lib doctest::doctest)
 target_compile_options(TestArena PRIVATE -fsanitize=address,undefined)
 target_link_options(TestArena PRIVATE -fsanitize=address,undefined)
+
+add_executable(TestObjectPool ./tests/test_objectpool.cpp) 
+target_link_libraries(TestObjectPool PRIVATE arena_lib doctest::doctest)
+target_compile_options(TestObjectPool PRIVATE -fsanitize=address,undefined)
+target_link_options(TestObjectPool PRIVATE -fsanitize=address,undefined)
+
 add_test(NAME ArenaUnitTests COMMAND TestArena)
-
-
-
-
-
+add_test(NAME ObjectPoolUnitTests COMMAND TestObjectPool)

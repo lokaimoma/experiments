@@ -32,7 +32,7 @@ public:
   Arena &operator=(Arena &&) noexcept;
   ~Arena();
 
-  template <typename T> [[nodiscard]] T *alloc(size_t count);
+  template <typename T> [[nodiscard]] T *alloc(size_t count = 1);
   void reset();
 };
 
