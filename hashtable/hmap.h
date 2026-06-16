@@ -30,9 +30,13 @@ template <typename K, typename V> class HMap {
   };
 
 private:
+  static constexpr size_t k_rehash_work = 128;
+
   Arena arena;
   ObjectPool<HMap::Entry> objectPool;
-  Table htab{1024};
+  Table htab_primary{1024};
+  std::optional<Table> htab_secondary;
+  size_t rehash_idx{0};
 
   StorageK internal_key(K key) {
     if constexpr (std::is_same_v<StorageK, std::string_view>) {
@@ -52,6 +56,9 @@ private:
     }
   }
 
+  bool is_rehashing() const;
+  void perform_rehash();
+
 public:
   HMap()
       : arena([]() {
@@ -64,7 +71,7 @@ public:
         objectPool(arena) {}
   void add(K key, V value);
   std::optional<V> remove(K key);
-  std::optional<V> get(K key);
+  std::optional<V> get(K key) const;
 };
 
 template <typename K, typename V> void HMap<K, V>::add(K key, V value) {
@@ -72,8 +79,7 @@ template <typename K, typename V> void HMap<K, V>::add(K key, V value) {
 
   TNode lookupNode{.hcode{HMapHasher<K>::hash(key)}};
 
-  ;
-  TNode *n{htab.lookup(&lookupNode, [key](TNode *l) {
+  TNode *n{htab_primary.lookup(&lookupNode, [key](TNode *l) {
     MapEntry *le{container_of(l, MapEntry, hnode)};
     return le->key == key;
   })};
@@ -87,14 +93,28 @@ template <typename K, typename V> void HMap<K, V>::add(K key, V value) {
     e->key = internal_key(key);
     e->value = value;
     e->hnode = TNode{.hcode{HMapHasher<K>::hash(key)}, .next = nullptr};
-    htab.insert(&e->hnode);
+
+    if (!is_rehashing()) {
+      htab_primary.insert(&e->hnode);
+      size_t size{htab_primary.get_size()};
+      size_t cap{htab_primary.get_cap()};
+
+      if ((size * 4 > cap * 3)) { // 75% max load factor
+        htab_secondary.emplace(cap * 2);
+        rehash_idx = 0;
+        perform_rehash();
+      }
+    } else {
+      htab_secondary.value().insert(&e->hnode);
+      perform_rehash();
+    }
   }
 }
 
 template <typename K, typename V> std::optional<V> HMap<K, V>::remove(K key) {
   using MapEntry = typename HMap<K, V>::Entry;
   TNode node{.hcode{HMapHasher<K>::hash(key)}};
-  TNode *nn = htab.detach(&node, [key](TNode *l) {
+  TNode *nn = htab_primary.detach(&node, [key](TNode *l) {
     MapEntry *le{container_of(l, MapEntry, hnode)};
     return le->key == key;
   });
@@ -111,10 +131,11 @@ template <typename K, typename V> std::optional<V> HMap<K, V>::remove(K key) {
   return std::optional{v};
 }
 
-template <typename K, typename V> std::optional<V> HMap<K, V>::get(K key) {
+template <typename K, typename V>
+std::optional<V> HMap<K, V>::get(K key) const {
   using MapEntry = typename HMap<K, V>::Entry;
   TNode node{.hcode{HMapHasher<K>::hash(key)}};
-  TNode *nn = htab.lookup(&node, [key](TNode *l) {
+  TNode *nn = htab_primary.lookup(&node, [key](TNode *l) {
     MapEntry *le{container_of(l, MapEntry, hnode)};
     return le->key == key;
   });
@@ -124,4 +145,8 @@ template <typename K, typename V> std::optional<V> HMap<K, V>::get(K key) {
   }
 
   return std::optional{container_of(nn, MapEntry, hnode)->value};
+}
+
+template <typename K, typename V> bool HMap<K, V>::is_rehashing() const {
+  return htab_secondary.has_value();
 }
