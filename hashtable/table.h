@@ -23,6 +23,8 @@ private:
 
 public:
   Table(size_t size, Arena &arena) : Table(size, std::nullopt, &arena) {}
-
   Table(size_t size) : Table(size, create_owned_arena(size), nullptr) {}
+
+  Table(Table &&t) noexcept;
+  Table &operator=(Table &&t) noexcept;
 };
