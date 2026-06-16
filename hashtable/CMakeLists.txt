@@ -22,5 +22,11 @@ target_link_libraries(TestTable PRIVATE htmap_lib doctest::doctest)
 target_compile_options(TestTable PRIVATE -fsanitize=address,undefined)
 target_link_options(TestTable PRIVATE -fsanitize=address,undefined)
 
+add_executable(TestHMap ./tests/test_hmap.cpp) 
+target_link_libraries(TestHMap PRIVATE htmap_lib doctest::doctest)
+target_compile_options(TestHMap PRIVATE -fsanitize=address,undefined)
+target_link_options(TestHMap PRIVATE -fsanitize=address,undefined)
+
 add_test(NAME TableUnitTests COMMAND TestTable)
+add_test(NAME HMapUnitTests COMMAND TestHMap)
 
