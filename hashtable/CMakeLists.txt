@@ -14,7 +14,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(doctest)
 
-add_library(htmap_lib table.cpp table.h)
+add_library(htmap_lib table.cpp table.h hmap.h hmaphasher.h)
 target_link_libraries(htmap_lib PUBLIC arena_lib)
 
 add_executable(TestTable ./tests/test_table.cpp) 
