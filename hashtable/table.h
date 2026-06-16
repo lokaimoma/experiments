@@ -31,6 +31,8 @@ public:
   void insert(TNode *target);
   template <typename KeyEq> TNode *detach(TNode *target, KeyEq eqfn);
   template <typename KeyEq> TNode *lookup(TNode *target, KeyEq eqfn);
+
+  TNode *&operator[](size_t idx);
 };
 
 template <typename KeyEq> TNode *Table::detach(TNode *target, KeyEq eqfn) {

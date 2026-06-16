@@ -1,4 +1,5 @@
-// AI-GENERATED
+// AI-Generated
+#include <stdexcept>
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "../table.h"
 #include "doctest.h"
@@ -157,6 +158,50 @@ TEST_SUITE("Table - Collision & Pointer Mechanics") {
       CHECK(n1.next == nullptr);
       CHECK(table.lookup(&n1, make_eq("A")) == nullptr);
     }
+  }
+}
+
+TEST_SUITE("Table - Direct Bucket Indexing") {
+
+  TEST_CASE("Bucket Access and Direct Mutation via operator[]") {
+    Table table(4);
+
+    TestNode n1, n2;
+    n1.hcode = 1;
+    n1.key = "node1";
+    n2.hcode = 1;
+    n2.key = "node2";
+
+    table.insert(&n1);
+    table.insert(&n2); // Bucket 1: head -> n2 -> n1 -> nullptr
+
+    // Test Case 1: Read bucket state via operator[]
+    TNode *bucket_head = table[1];
+    REQUIRE(bucket_head == &n2);
+    CHECK(bucket_head->next == &n1);
+
+    // Test Case 2: Verify empty bucket returns clean nullptr from memset
+    // tracking
+    CHECK(table[0] == nullptr);
+    CHECK(table[2] == nullptr);
+    CHECK(table[3] == nullptr);
+
+    // Test Case 3: Mutate bucket pointer via Reference (Simulating HMap
+    // progressive rehash pluck)
+    table[1] = nullptr;
+
+    // Lookups should now completely miss because the bucket head was
+    // disconnected
+    CHECK(table.lookup(&n1, make_eq("node1")) == nullptr);
+    CHECK(table.lookup(&n2, make_eq("node2")) == nullptr);
+
+    // Original chain nodes themselves are untouched, but isolated from table
+    CHECK(n2.next == &n1);
+  }
+
+  TEST_CASE("Out of bounds bucket indexing triggers assertion panic") {
+    Table table(4);
+    CHECK_THROWS_AS(table[4], std::out_of_range);
   }
 }
 

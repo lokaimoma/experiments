@@ -1,4 +1,5 @@
 #include "table.h"
+#include <cassert>
 #include <cstring>
 #include <utility>
 
@@ -56,4 +57,11 @@ void Table::insert(TNode *target) {
   size_t pos{target->hcode & size_mask}; // hcode % size
   target->next = *(tnodes + pos);
   *(tnodes + pos) = target;
+}
+
+TNode *&Table::operator[](size_t idx) {
+  if (idx >= size) {
+    throw std::out_of_range("Table index out of bounds");
+  }
+  return tnodes[idx];
 }
