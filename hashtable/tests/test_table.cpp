@@ -31,7 +31,7 @@ TEST_SUITE("Table - Core Functionality") {
 
   TEST_CASE("Basic Insertion and Lookup Operations") {
     Table table(16);
-    CHECK(table.len() == 0); // Initially empty
+    CHECK(table.get_size() == 0); // Initially empty
 
     TestNode n1;
     n1.hcode = mock_hash("apple");
@@ -39,7 +39,7 @@ TEST_SUITE("Table - Core Functionality") {
     n1.value = "fruit";
 
     table.insert(&n1);
-    CHECK(table.len() == 1); // Size must increment on insert
+    CHECK(table.get_size() == 1); // Size must increment on insert
 
     TNode *found = table.lookup(&n1, make_eq("apple"));
     REQUIRE(found != nullptr);
@@ -56,13 +56,13 @@ TEST_SUITE("Table - Core Functionality") {
     CHECK(table.lookup(&n1, make_eq("apple")) == nullptr);
 
     table.insert(&n1);
-    CHECK(table.len() == 1);
+    CHECK(table.get_size() == 1);
 
     TestNode dummy;
     dummy.hcode = mock_hash("banana");
     dummy.key = "banana";
     CHECK(table.lookup(&dummy, make_eq("banana")) == nullptr);
-    CHECK(table.len() == 1); // Failed lookup must not modify size
+    CHECK(table.get_size() == 1); // Failed lookup must not modify size
   }
 
   TEST_CASE("Same Hash Code but Different Keys (Short-Circuit Evaluation)") {
@@ -75,7 +75,7 @@ TEST_SUITE("Table - Core Functionality") {
     n2.key = "ImposterKey";
 
     table.insert(&n1);
-    CHECK(table.len() == 1);
+    CHECK(table.get_size() == 1);
 
     CHECK(table.lookup(&n2, make_eq("ImposterKey")) == nullptr);
   }
@@ -97,7 +97,8 @@ TEST_SUITE("Table - Collision & Pointer Mechanics") {
     table.insert(&n1);
     table.insert(&n2);
     table.insert(&n3);
-    CHECK(table.len() == 3); // Collisions must track accurate overall counts
+    CHECK(table.get_size() ==
+          3); // Collisions must track accurate overall counts
 
     CHECK(table.lookup(&n1, make_eq("node1")) == &n1);
     CHECK(table.lookup(&n2, make_eq("node2")) == &n2);
@@ -122,20 +123,21 @@ TEST_SUITE("Table - Collision & Pointer Mechanics") {
     table.insert(&n1);
     table.insert(&n2);
     table.insert(&n3);
-    CHECK(table.len() == 3);
+    CHECK(table.get_size() == 3);
 
     SUBCASE("Detaching a non-existent key") {
       TestNode fake;
       fake.hcode = 5;
       fake.key = "FAKE";
       CHECK(table.detach(&fake, make_eq("FAKE")) == nullptr);
-      CHECK(table.len() == 3); // Unsuccessful detach must leave size unaffected
+      CHECK(table.get_size() ==
+            3); // Unsuccessful detach must leave size unaffected
     }
 
     SUBCASE("Detaching from the middle of a bucket chain") {
       TNode *detached = table.detach(&n2, make_eq("B"));
       REQUIRE(detached == &n2);
-      CHECK(table.len() == 2); // Decrement tracking check
+      CHECK(table.get_size() == 2); // Decrement tracking check
       CHECK(n2.next == nullptr);
       CHECK(n3.next == &n1);
     }
@@ -143,7 +145,7 @@ TEST_SUITE("Table - Collision & Pointer Mechanics") {
     SUBCASE("Detaching straight from the bucket head pointer") {
       TNode *detached = table.detach(&n3, make_eq("C"));
       REQUIRE(detached == &n3);
-      CHECK(table.len() == 2); // Decrement tracking check
+      CHECK(table.get_size() == 2); // Decrement tracking check
       CHECK(n3.next == nullptr);
       CHECK(table.lookup(&n3, make_eq("C")) == nullptr);
       CHECK(table.lookup(&n2, make_eq("B")) == &n2);
@@ -152,11 +154,11 @@ TEST_SUITE("Table - Collision & Pointer Mechanics") {
     SUBCASE("Detaching the absolute final tail element in a chain") {
       table.detach(&n3, make_eq("C"));
       table.detach(&n2, make_eq("B"));
-      CHECK(table.len() == 1);
+      CHECK(table.get_size() == 1);
 
       TNode *detached = table.detach(&n1, make_eq("A"));
       REQUIRE(detached == &n1);
-      CHECK(table.len() == 0); // Empty table boundary state verified
+      CHECK(table.get_size() == 0); // Empty table boundary state verified
       CHECK(n1.next == nullptr);
       CHECK(table.lookup(&n1, make_eq("A")) == nullptr);
     }
@@ -176,7 +178,7 @@ TEST_SUITE("Table - Direct Bucket Indexing") {
 
     table.insert(&n1);
     table.insert(&n2);
-    CHECK(table.len() == 2);
+    CHECK(table.get_size() == 2);
 
     // Test Case 1: Read bucket state via operator[]
     TNode *bucket_head = table[1];
@@ -214,10 +216,11 @@ TEST_SUITE("Table - Lifecycle & Memory State Verification") {
     n1.hcode = mock_hash("move_me");
     n1.key = "move_me";
     source_table.insert(&n1);
-    REQUIRE(source_table.len() == 1);
+    REQUIRE(source_table.get_size() == 1);
 
     Table moved_table(std::move(source_table));
-    CHECK(moved_table.len() == 1); // Size value metadata has moved over cleanly
+    CHECK(moved_table.get_size() ==
+          1); // Size value metadata has moved over cleanly
 
     CHECK(moved_table.lookup(&n1, make_eq("move_me")) == &n1);
   }
@@ -228,15 +231,24 @@ TEST_SUITE("Table - Lifecycle & Memory State Verification") {
     n1.hcode = mock_hash("assign_me");
     n1.key = "assign_me";
     source_table.insert(&n1);
-    REQUIRE(source_table.len() == 1);
+    REQUIRE(source_table.get_size() == 1);
 
     Table assigned_table(16);
-    CHECK(assigned_table.len() == 0);
+    CHECK(assigned_table.get_size() == 0);
 
     assigned_table = std::move(source_table);
-    CHECK(assigned_table.len() ==
+    CHECK(assigned_table.get_size() ==
           1); // Target destination holds incoming size accurately
 
     CHECK(assigned_table.lookup(&n1, make_eq("assign_me")) == &n1);
+  }
+
+  TEST_CASE("Capacity properties are tracked and preserved accurately") {
+    Table table(32);
+    CHECK(table.get_cap() == 32);
+
+    // Verify move mechanics transfer capacity metadata without corruption
+    Table moved_table(std::move(table));
+    CHECK(moved_table.get_cap() == 32);
   }
 }

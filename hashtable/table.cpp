@@ -70,4 +70,6 @@ TNode *&Table::operator[](size_t idx) {
   return tnodes[idx];
 }
 
-size_t Table::len() const { return size; }
+size_t Table::get_size() const { return size; }
+
+size_t Table::get_cap() const { return cap; };

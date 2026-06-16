@@ -34,7 +34,8 @@ public:
   template <typename KeyEq> TNode *lookup(TNode *target, KeyEq eqfn);
 
   TNode *&operator[](size_t idx);
-  size_t len() const;
+  size_t get_size() const;
+  size_t get_cap() const;
 };
 
 template <typename KeyEq> TNode *Table::detach(TNode *target, KeyEq eqfn) {
