@@ -27,7 +27,7 @@ public:
   Arena(const Arena &) = delete;
   Arena &operator=(const Arena &) = delete;
 
-  static std::optional<Arena> create();
+  static std::optional<Arena> create(size_t s = DEFAULT_BLOCK_SIZE);
   Arena(Arena &&) noexcept;
   Arena &operator=(Arena &&) noexcept;
   ~Arena();

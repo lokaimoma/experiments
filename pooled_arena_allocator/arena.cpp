@@ -56,9 +56,9 @@ void Arena::reset() {
   active_block = head_of_blocks;
 }
 
-std::optional<Arena> Arena::create() {
+std::optional<Arena> Arena::create(size_t s) {
   Arena a{};
-  if (!a.request_new_block(Arena::DEFAULT_BLOCK_SIZE)) {
+  if (!a.request_new_block(s)) {
     return std::nullopt;
   }
   return a;
