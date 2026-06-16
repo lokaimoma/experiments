@@ -51,3 +51,13 @@ template <typename KeyEq> TNode *Table::detach(TNode *target, KeyEq eqfn) {
   t->next = nullptr;
   return t;
 }
+
+template <typename KeyEq> TNode *Table::lookup(TNode *target, KeyEq eqfn) {
+  size_t pos{target->hcode &
+             size_mask}; // hcode % size (valid because size is a power of 2)
+  TNode *current{*(tnodes + pos)};
+  while (current && !((current)->hcode == target->hcode && eqfn(current))) {
+    current = current->next;
+  }
+  return current;
+}
