@@ -15,8 +15,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(doctest)
 
 add_library(arena_lib arena.cpp arena.h objectpool.h)
-
-enable_testing()
+target_include_directories(arena_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_executable(TestArena ./tests/test_arena.cpp) 
 target_link_libraries(TestArena PRIVATE arena_lib doctest::doctest)
