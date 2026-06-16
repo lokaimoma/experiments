@@ -32,3 +32,22 @@ public:
   template <typename KeyEq> TNode *detach(TNode *target, KeyEq eqfn);
   template <typename KeyEq> TNode *lookup(TNode *target, KeyEq eqfn);
 };
+
+template <typename KeyEq> TNode *Table::detach(TNode *target, KeyEq eqfn) {
+  size_t pos{target->hcode &
+             size_mask}; // hcode % size (valid because size is a power of 2)
+  TNode **current{tnodes + pos};
+
+  while (*current && !((*current)->hcode == target->hcode && eqfn(*current))) {
+    current = &((*current)->next);
+  }
+
+  if (!*current) {
+    return nullptr;
+  }
+
+  TNode *t{*current};
+  *current = t->next;
+  t->next = nullptr;
+  return t;
+}
