@@ -1,14 +1,16 @@
 #include "table.h"
+#include <cstring>
 #include <utility>
 
 Table::Table(size_t size, std::optional<Arena> &&arena_opt, Arena *active_arena)
     : size{size}, size_mask{size - 1}, owned_arena{std::move(arena_opt)},
       arenaptr{active_arena ? active_arena : &(*owned_arena)},
       tnodes([size, this] {
-        TNode *nodes{arenaptr->alloc<TNode>(size)};
+        TNode **nodes{arenaptr->alloc<TNode *>(size)};
         if (!nodes) {
           throw std::bad_alloc();
         }
+        std::memset(nodes, 0, size * sizeof(TNode *));
         return nodes;
       }()) {
   assert(size > 0 && ((size - 1) & (size)) == 0);
@@ -48,4 +50,10 @@ Table &Table::operator=(Table &&t) noexcept {
   }
 
   return *this;
+}
+
+void Table::insert(TNode *target) {
+  size_t pos{target->hcode & size_mask}; // hcode % size
+  target->next = *(tnodes + pos);
+  *(tnodes + pos) = target;
 }
