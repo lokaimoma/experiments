@@ -84,30 +84,39 @@ template <typename K, typename V> void HMap<K, V>::add(K key, V value) {
     return le->key == key;
   })};
 
+  if (!n && is_rehashing()) {
+    Table &t{htab_secondary.value()};
+    n = t.lookup(&lookupNode, [key](TNode *l) {
+      MapEntry *le{container_of(l, MapEntry, hnode)};
+      return le->key == key;
+    });
+  }
+
   if (n) {
     MapEntry *ee{container_of(n, MapEntry, hnode)};
     ee->value = value;
-  } else {
-    MapEntry *e{objectPool.alloc()};
-    ::new (e) MapEntry();
-    e->key = internal_key(key);
-    e->value = value;
-    e->hnode = TNode{.hcode{HMapHasher<K>::hash(key)}, .next = nullptr};
+    return;
+  }
 
-    if (!is_rehashing()) {
-      htab_primary.insert(&e->hnode);
-      size_t size{htab_primary.get_size()};
-      size_t cap{htab_primary.get_cap()};
+  MapEntry *e{objectPool.alloc()};
+  ::new (e) MapEntry();
+  e->key = internal_key(key);
+  e->value = value;
+  e->hnode = TNode{.hcode{HMapHasher<K>::hash(key)}, .next = nullptr};
 
-      if ((size * 4 > cap * 3)) { // 75% max load factor
-        htab_secondary.emplace(cap * 2);
-        rehash_idx = 0;
-        perform_rehash();
-      }
-    } else {
-      htab_secondary.value().insert(&e->hnode);
+  if (!is_rehashing()) {
+    htab_primary.insert(&e->hnode);
+    size_t size{htab_primary.get_size()};
+    size_t cap{htab_primary.get_cap()};
+
+    if ((size * 4 > cap * 3)) { // 75% max load factor
+      htab_secondary.emplace(cap * 2);
+      rehash_idx = 0;
       perform_rehash();
     }
+  } else {
+    htab_secondary.value().insert(&e->hnode);
+    perform_rehash();
   }
 }
 
@@ -119,6 +128,15 @@ template <typename K, typename V> std::optional<V> HMap<K, V>::remove(K key) {
     return le->key == key;
   });
 
+  if (!nn && is_rehashing()) {
+    Table &t{htab_secondary.value()};
+    nn = t.detach(&node, [key](TNode *l) {
+      MapEntry *le{container_of(l, MapEntry, hnode)};
+      return le->key == key;
+    });
+  }
+
+  perform_rehash();
   if (!nn) {
     return {};
   }
@@ -140,6 +158,14 @@ std::optional<V> HMap<K, V>::get(K key) const {
     return le->key == key;
   });
 
+  if (!nn && is_rehashing()) {
+    const Table &t{htab_secondary.value()};
+    nn = t.lookup(&node, [key](TNode *l) {
+      MapEntry *le{container_of(l, MapEntry, hnode)};
+      return le->key == key;
+    });
+  }
+
   if (!nn) {
     return {};
   }
@@ -149,4 +175,32 @@ std::optional<V> HMap<K, V>::get(K key) const {
 
 template <typename K, typename V> bool HMap<K, V>::is_rehashing() const {
   return htab_secondary.has_value();
+}
+
+template <typename K, typename V> void HMap<K, V>::perform_rehash() {
+  if (!is_rehashing()) {
+    return;
+  }
+
+  Table &t{htab_secondary.value()};
+  size_t primary_cap{htab_primary.get_cap()};
+  for (size_t i{0}; i < k_rehash_work; i++) {
+    if (rehash_idx >= primary_cap) {
+      break;
+    }
+    TNode *&a{htab_primary[rehash_idx]};
+    while (a) {
+      TNode *next{a->next};
+      a->next = nullptr;
+      t.insert(a);
+      a = next;
+    }
+    ++rehash_idx;
+  }
+
+  if (rehash_idx >= primary_cap) {
+    htab_primary = std::move(htab_secondary.value());
+    htab_secondary.reset();
+    rehash_idx = 0;
+  }
 }

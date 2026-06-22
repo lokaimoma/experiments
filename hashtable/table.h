@@ -31,7 +31,7 @@ public:
 
   void insert(TNode *target);
   template <typename KeyEq> TNode *detach(TNode *target, KeyEq eqfn);
-  template <typename KeyEq> TNode *lookup(TNode *target, KeyEq eqfn);
+  template <typename KeyEq> TNode *lookup(TNode *target, KeyEq eqfn) const;
 
   TNode *&operator[](size_t idx);
   size_t get_size() const;
@@ -58,7 +58,8 @@ template <typename KeyEq> TNode *Table::detach(TNode *target, KeyEq eqfn) {
   return t;
 }
 
-template <typename KeyEq> TNode *Table::lookup(TNode *target, KeyEq eqfn) {
+template <typename KeyEq>
+TNode *Table::lookup(TNode *target, KeyEq eqfn) const {
   size_t pos{target->hcode &
              cap_mask}; // hcode % cap (valid because cap is a power of 2)
   TNode *current{*(tnodes + pos)};
