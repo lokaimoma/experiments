@@ -190,11 +190,14 @@ template <typename K, typename V> void HMap<K, V>::perform_rehash() const {
 
   Table &t{htab_secondary.value()};
   size_t primary_cap{htab_primary.get_cap()};
-  for (size_t i{0}; i < k_rehash_work; i++) {
+  for (size_t i{0}; i < k_rehash_work && i < primary_cap;) {
     if (rehash_idx >= primary_cap) {
       break;
     }
     TNode *&a{htab_primary[rehash_idx]};
+    if (a) {
+      ++i;
+    }
     while (a) {
       TNode *next{a->next};
       a->next = nullptr;

@@ -87,27 +87,15 @@ there's no realistic scenario where it would matter.
 
 ## 6. Rehash work is bucket-counted, not entry-counted
 
-**File:** `hmap.h:180-199`  
-**Status:** Not fixed
+**File:** `hmap.h:193-199`
+**Status:** Fixed
 
-`k_rehash_work = 128` processes 128 **buckets** per call, regardless of how many
-entries are actually in those buckets. If most buckets are empty (sparse map), a call
-to `perform_rehash()` may do almost no useful work — the `while (a)` loop immediately
-exits for each empty bucket.
-
-**Consequence:** Rehashing progresses slowly for sparse tables. After N calls to
-`perform_rehash()`, N * 128 buckets are "processed" but only a handful of entries
-were actually moved. The rehash completion check (`rehash_idx >= primary_cap`)
-signals completion once all buckets are scanned, which happens promptly — but the
-real work (moving entries) happens gradually.
-
-This is more of a performance characteristic than a correctness bug. The bucket-based
-approach is simple and guarantees eventual completion in a bounded number of calls
-(ceil(cap / 128)).
-
-**Potential improvement:** Track entries-moved instead of buckets-processed.
-Process buckets until `k_rehash_work` entries have been moved, rather than until
-128 buckets have been visited.
+The loop now counts entries moved (`i` increments only when `a` is non-null) and
+stops after `k_rehash_work` entries have been processed. For sparse tables where
+most buckets are empty, this means more buckets get scanned per call until 128
+actual entries are found — but each call does a meaningful amount of work. Worst-case
+progress is still bounded (at most ceil(cap / 128) calls) since `i < primary_cap`
+catches the case where we scan the entire table.
 
 ---
 
