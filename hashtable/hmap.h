@@ -37,6 +37,7 @@ private:
   Table htab_primary{1024};
   std::optional<Table> htab_secondary;
   size_t rehash_idx{0};
+  size_t live_count{0};
 
   StorageK internal_key(K key) {
     if constexpr (std::is_same_v<StorageK, std::string_view>) {
@@ -72,6 +73,7 @@ public:
   void add(K key, V value);
   std::optional<V> remove(K key);
   std::optional<V> get(K key) const;
+  size_t size() const { return live_count; }
 };
 
 template <typename K, typename V> void HMap<K, V>::add(K key, V value) {
@@ -103,13 +105,13 @@ template <typename K, typename V> void HMap<K, V>::add(K key, V value) {
   e->key = internal_key(key);
   e->value = value;
   e->hnode = TNode{.hcode{HMapHasher<K>::hash(key)}, .next = nullptr};
+  live_count++;
 
   if (!is_rehashing()) {
     htab_primary.insert(&e->hnode);
-    size_t size{htab_primary.get_size()};
     size_t cap{htab_primary.get_cap()};
 
-    if ((size * 4 > cap * 3)) { // 75% max load factor
+    if ((live_count * 4 > cap * 3)) { // 75% max load factor
       htab_secondary.emplace(cap * 2);
       rehash_idx = 0;
       perform_rehash();
@@ -145,6 +147,7 @@ template <typename K, typename V> std::optional<V> HMap<K, V>::remove(K key) {
   V v{e->value};
   e->~MapEntry();
   objectPool.free(e);
+  live_count--;
 
   return std::optional{v};
 }

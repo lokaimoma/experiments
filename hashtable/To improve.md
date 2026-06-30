@@ -49,25 +49,14 @@ Fixed to `const Table &t` at `hmap.h:162`.
 
 ## 3. `htab_primary.size` is not decremented during rehashing
 
-**File:** `hmap.h:191-197`  
-**Status:** Not fixed
+**File:** `hmap.h:40,108,114,150`  
+**Status:** Fixed
 
-During incremental rehashing, `perform_rehash()` moves entries from `htab_primary`'s
-buckets into `htab_secondary` via `t.insert(a)`. Each call to `t.insert(a)` increments
-`htab_secondary.size`, but **`htab_primary.size` is never decremented** when entries
-leave the primary table.
-
-**Consequence:** While rehashing is in progress, `htab_primary.get_size()` is inflated.
-It double-counts every entry that has already been moved. Only after the rehash completes
-and `htab_primary = std::move(htab_secondary.value())` does `size` become accurate again
-(the old primary with its inflated count is discarded).
-
-**Current mitigations:** The load-factor check in `add()` is only evaluated when
-`!is_rehashing()`, so the inflated size doesn't cause spurious re-triggers.
-Nevertheless, `htab_primary.get_size()` is wrong for any caller during rehashing.
-
-**Potential fix:** Track a live total count in `HMap` directly, or add a method to
-decrement `Table::size` and call it from the rehash loop.
+`HMap` now tracks `live_count` — the total number of live entries across both primary
+and secondary tables. It is incremented in `add()` and decremented in `remove()`.
+The load-factor check in `add()` uses `live_count` instead of `htab_primary.get_size()`,
+so the trigger is accurate regardless of rehashing state. A `size()` accessor is also
+exposed on `HMap`.
 
 ---
 
