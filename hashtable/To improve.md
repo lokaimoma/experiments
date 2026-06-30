@@ -62,21 +62,13 @@ exposed on `HMap`.
 
 ## 4. Rehashing stalls under read-heavy traffic
 
-**File:** `hmap.h:152-174`  
-**Status:** Not fixed
+**File:** `hmap.h:37-40,60,155-179`  
+**Status:** Fixed
 
-`get()` is declared `const` and does not call `perform_rehash()`. Only `add()` and
-`remove()` advance the rehashing state machine.
-
-**Consequence:** If the map sees mostly reads during rehashing (e.g. a server responding
-to lookups), rehashing stalls indefinitely. The secondary table stays alive, all new
-inserts go to the secondary, and the old primary's memory is never released. If the
-read-heavy period is long enough, the secondary table itself can accumulate enough
-entries to exceed its load factor (see issue #5).
-
-**Potential fix:** Mark `rehash_idx`, `htab_secondary`, and `htab_primary` as `mutable`
-and call `perform_rehash()` from `get()`. The rehashing machinery is an internal
-implementation detail invisible to callers — mutability is appropriate here.
+`htab_primary`, `htab_secondary`, `rehash_idx`, and `live_count` are marked `mutable`,
+and `perform_rehash()` is marked `const`. `get()` now calls `perform_rehash()` on every
+lookup while remaining `const`. This ensures rehashing progresses regardless of which
+operations are called, without sacrificing const-correctness in the public API.
 
 ---
 

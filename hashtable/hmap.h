@@ -34,10 +34,10 @@ private:
 
   Arena arena;
   ObjectPool<HMap::Entry> objectPool;
-  Table htab_primary{1024};
-  std::optional<Table> htab_secondary;
-  size_t rehash_idx{0};
-  size_t live_count{0};
+  mutable Table htab_primary{1024};
+  mutable std::optional<Table> htab_secondary;
+  mutable size_t rehash_idx{0};
+  mutable size_t live_count{0};
 
   StorageK internal_key(K key) {
     if constexpr (std::is_same_v<StorageK, std::string_view>) {
@@ -58,7 +58,7 @@ private:
   }
 
   bool is_rehashing() const;
-  void perform_rehash();
+  void perform_rehash() const;
 
 public:
   HMap()
@@ -156,6 +156,9 @@ template <typename K, typename V>
 std::optional<V> HMap<K, V>::get(K key) const {
   using MapEntry = typename HMap<K, V>::Entry;
   TNode node{.hcode{HMapHasher<K>::hash(key)}};
+
+  perform_rehash();
+
   TNode *nn = htab_primary.lookup(&node, [key](TNode *l) {
     MapEntry *le{container_of(l, MapEntry, hnode)};
     return le->key == key;
@@ -180,7 +183,7 @@ template <typename K, typename V> bool HMap<K, V>::is_rehashing() const {
   return htab_secondary.has_value();
 }
 
-template <typename K, typename V> void HMap<K, V>::perform_rehash() {
+template <typename K, typename V> void HMap<K, V>::perform_rehash() const {
   if (!is_rehashing()) {
     return;
   }
