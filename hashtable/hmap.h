@@ -11,11 +11,8 @@
 #include <type_traits>
 #include <utility>
 
-#define container_of(ptr, T, member)                                           \
-  ({                                                                           \
-    const typeof(((T *)0)->member) *__mptr = (ptr);                            \
-    (T *)((char *)__mptr - offsetof(T, member));                               \
-  })
+#define container_of(ptr, T, member) \
+  reinterpret_cast<T *>((char *)(ptr) - offsetof(T, member))
 
 template <typename K, typename V> class HMap {
   using StorageK = std::conditional_t<std::is_same_v<K, std::string> ||
