@@ -186,6 +186,61 @@ TEST_CASE("HMap Rehashing Lifecycle") {
     CHECK(*map.get(0) == 999);
   }
 
+  SUBCASE("size() returns correct live count before and during rehashing") {
+    HMap<int, int> map;
+    for (int i = 0; i < kRehashThreshold; i++) {
+      map.add(i, i);
+    }
+    CHECK(map.size() == kRehashThreshold);
+
+    map.add(kRehashThreshold, kRehashThreshold);
+    CHECK(map.size() == kRehashThreshold + 1);
+
+    map.remove(0);
+    CHECK(map.size() == kRehashThreshold);
+
+    // Drive rehash to completion
+    for (int i = 0; i < 20; i++) {
+      map.remove(kRehashThreshold + 1 + i);
+    }
+    CHECK(map.size() == kRehashThreshold);
+  }
+
+  SUBCASE("size() decrements correctly on remove during rehashing") {
+    HMap<int, int> map;
+    for (int i = 0; i < kRehashThreshold + 10; i++) {
+      map.add(i, i);
+    }
+    size_t before = map.size();
+    map.remove(0);
+    CHECK(map.size() == before - 1);
+    map.remove(1);
+    CHECK(map.size() == before - 2);
+  }
+
+  SUBCASE("get() drives rehashing to completion (stall fix)") {
+    HMap<int, int> map;
+    for (int i = 0; i < kRehashThreshold; i++) {
+      map.add(i, i);
+    }
+    // Ensure we're in rehashing state
+    map.add(kRehashThreshold, kRehashThreshold);
+    REQUIRE(map.size() == kRehashThreshold + 1);
+
+    // Only get() calls — no add/remove — must still advance rehashing.
+    // 1024 / 128 = 8 calls needed; use more to account for entry-counted work.
+    for (int j = 0; j < 16; j++) {
+      map.get(0);
+    }
+
+    // Rehashing should be done; all entries findable.
+    for (int i = 0; i <= kRehashThreshold; i++) {
+      auto val = map.get(i);
+      REQUIRE(val.has_value());
+      CHECK(*val == i);
+    }
+  }
+
   SUBCASE("Rehashing completes after sufficient operations") {
     HMap<int, int> map;
     for (int i = 0; i < kRehashThreshold; i++) {
