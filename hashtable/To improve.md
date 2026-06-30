@@ -75,27 +75,13 @@ operations are called, without sacrificing const-correctness in the public API.
 ## 5. Load factor check only evaluates when not rehashing, and only on primary size
 
 **File:** `hmap.h:107-116`  
-**Status:** Not fixed
+**Status:** No longer a concern
 
-The load-factor check on line 112:
-```cpp
-if ((size * 4 > cap * 3)) { // 75% max load factor
-```
-
-- Only runs in the `!is_rehashing()` branch (line 107).
-- Reads `htab_primary.get_size()`, which is inflated during rehashing (issue #3).
-
-**Consequence:** If rehashing stalls (issue #4), new entries keep piling into
-`htab_secondary` at the doubled capacity (e.g. 2048). To exceed 75% of 2048 you'd
-need ~1536 total entries, which takes ~768 new inserts during the stalled rehashing
-window. Each new `add()` during rehashing calls `perform_rehash()` once, which moves
-128 buckets — so normally the rehash completes long before this is a problem.
-
-But in a pathological scenario where most `perform_rehash()` calls process empty
-buckets (e.g. map is sparse) and `get()` is the dominant operation, rehashing barely
-advances while new entries accumulate in the secondary. The secondary could exceed
-its intended load factor, degrading lookup performance with longer chains, and never
-trigger a new resize because the trigger only checks primary.
+This was coupled to issue #4 — the risk was the secondary growing unchecked during
+a stalled rehash. Now that every operation (including `get()`) advances the rehash
+by 128 buckets, the rehashing window is too short for the secondary to meaningfully
+accumulate entries. The load factor check still doesn't run during rehashing, but
+there's no realistic scenario where it would matter.
 
 ---
 
