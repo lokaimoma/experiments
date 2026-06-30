@@ -119,12 +119,15 @@ keys during rehashing would cover arena interaction + rehashing.
 
 ## 9. No `size()` method on `HMap`
 
+**Status:** Fixed
+
 There's no way to query the number of live entries in the map. Useful for both
 callers and internal assertions in tests.
 
 ## 10. `Table::operator[]` does a bounds check via exception
 
 **File:** `table.cpp:66-71`
+**Status:** Not relevant
 
 `operator[]` throws `std::out_of_range` on invalid index, but it's called in
 `perform_rehash()` where the index is always guarded by `rehash_idx >= primary_cap`.

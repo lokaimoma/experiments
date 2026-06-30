@@ -61,6 +61,24 @@ TEST_CASE("HMap String Key Interoperability and Arena Storage Allocation") {
     CHECK(*val == 1234);
   }
 
+  SUBCASE("String keys survive rehashing (arena copy + move across tables)") {
+    HMap<std::string, int> map;
+    for (int i = 0; i < 769; i++) {
+      map.add("key_" + std::to_string(i), i);
+    }
+    // Trigger and partially advance rehash
+    map.add("overflow", 999);
+    for (int i = 0; i < 8; i++) {
+      map.get("key_0");
+    }
+    for (int i = 0; i < 769; i++) {
+      auto val = map.get("key_" + std::to_string(i));
+      REQUIRE(val.has_value());
+      CHECK(*val == i);
+    }
+    CHECK(*map.get("overflow") == 999);
+  }
+
   SUBCASE("Handling const char* string literal keys") {
     HMap<const char *, int> map;
 
