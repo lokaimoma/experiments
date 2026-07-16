@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 
-add_library(server1dot1_lib server.cpp server.h)
+add_library(server1dot1_lib server.cpp)
 target_include_directories(server1dot1_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_executable(server1dot1example main.cpp) 

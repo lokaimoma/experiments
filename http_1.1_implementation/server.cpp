@@ -1,15 +1,29 @@
 #include "server.h"
+#include "http_connection.h"
+#include <algorithm>
 #include <arpa/inet.h>
+#include <cerrno>
+#include <cstdio>
 #include <cstring>
+#include <fcntl.h>
 #include <iostream>
+#include <memory>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
+#include <optional>
+#include <poll.h>
 #include <stdexcept>
 #include <string>
-#include <string_view>
+#include <sys/poll.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <utility>
+#include <vector>
+
+void fd_set_nonblock(int fd) {
+  fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
+}
 
 void Server::close() {
   if (getaddrinfo_result) {
@@ -119,24 +133,116 @@ void Server::listen() {
     perror("inet_ntop");
   }
 
+  fd_set_nonblock(sockfd);
+}
+
+auto Server::handle_accept() -> std::optional<ConnfdAddrPair> {
+  struct sockaddr_storage connaddr;
+  socklen_t connaddrlen{sizeof(struct sockaddr_storage)};
+  int connfd = accept(sockfd, (struct sockaddr *)&connaddr, &connaddrlen);
+
+  if (connfd == -1) {
+    switch (errno) {
+    case EWOULDBLOCK:
+    case ECONNABORTED:
+    case EPROTO:
+    case ENETDOWN:
+    case ENOPROTOOPT:
+    case EHOSTDOWN:
+    case ENOENT:
+    case EHOSTUNREACH:
+    case EOPNOTSUPP:
+    case ENETUNREACH:
+      return std::nullopt;
+    default:
+      throw std::runtime_error("handle_accept: " +
+                               std::string(strerror(errno)));
+    }
+  }
+
+  // struct timeval timeout{.tv_sec = 1, .tv_usec = 0};
+  // int res{
+  //     setsockopt(connfd, SOL_SOCKET, SO_RCVTIMEO, &timeout,
+  //     sizeof(timeout))};
+  // if (res == -1) {
+  //   perror("setsockopt(connfd)(SOL_SOCKET -> SO_RCVTIMEO)");
+  // }
+  fd_set_nonblock(connfd);
+
+  return ConnfdAddrPair{connfd, connaddr};
+}
+
+void Server::run() {
+  std::vector<std::unique_ptr<HttpConnection>> connections{};
+  std::vector<struct pollfd> pollfds{};
+  size_t closed_connections{0};
+
   while (true) {
-    struct sockaddr_storage connaddr;
-    socklen_t connaddrlen{sizeof(struct sockaddr_storage)};
-    int connfd = accept(sockfd, (struct sockaddr *)&connaddr, &connaddrlen);
-    if (connfd == -1) {
-      perror("accept");
-      continue;
+    pollfds.clear();
+    pollfds.reserve(connections.size() + 1);
+    pollfds.emplace_back(sockfd, POLLIN, 0);
+
+    for (auto &conn : connections) {
+      if (!conn) {
+        continue;
+      }
+
+      struct pollfd pfd{conn->fd, 0, 0};
+      if (conn->want_read)
+        pfd.events |= POLLIN;
+      if (conn->want_write)
+        pfd.events |= POLLOUT;
+      pollfds.push_back(pfd);
     }
 
-    struct timeval timeout{.tv_sec = 1, .tv_usec = 0};
-    res =
-        setsockopt(connfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
-    if (res == -1) {
-      perror("setsockopt(connfd)(SOL_SOCKET -> SO_RCVTIMEO)");
+    int res = poll(pollfds.data(), pollfds.size(), -1);
+    if (res == -1 && errno != EINTR) {
+      throw std::runtime_error("poll failed: " + std::string(strerror(errno)));
     }
 
-    // impl read write logic
+    if (pollfds[0].revents) {
+      if (auto connfd_addr_pair_ = handle_accept()) {
+        auto connfd_addr_pair{connfd_addr_pair_.value()};
+        if (connections.capacity() <= connfd_addr_pair.first) {
+          connections.resize(connfd_addr_pair.first + 1);
+        }
+        connections[connfd_addr_pair.first] = std::make_unique<HttpConnection>(
+            HttpConnection{.addr = connfd_addr_pair.second,
+                           .fd = connfd_addr_pair.first,
+                           .want_read = true});
+      }
+    }
 
-    ::close(connfd);
+    for (size_t i = 1; i < pollfds.size(); ++i) {
+      auto &pfd = pollfds[i];
+      if (pfd.revents == 0)
+        continue;
+
+      auto &conn = connections[pfd.fd];
+      if (!conn)
+        continue;
+
+      if (pfd.revents & POLLIN) {
+        // handle_read(*conn);
+      }
+
+      if (pfd.revents & POLLOUT) {
+        // handle_write(*conn);
+      }
+
+      if ((pfd.revents & (POLLHUP | POLLERR)) || conn->want_close) {
+        ::close(conn->fd);
+        conn.reset(nullptr);
+        closed_connections++;
+        continue;
+      }
+    }
+
+    if (closed_connections > 1000) {
+      connections.erase(
+          std::remove(connections.begin(), connections.end(), nullptr),
+          connections.end());
+      closed_connections = 0;
+    }
   }
 }

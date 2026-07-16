@@ -1,8 +1,13 @@
 #pragma once
+#include <optional>
 #include <string>
+#include <sys/socket.h>
+#include <utility>
 
 class Server {
 private:
+  using ConnfdAddrPair = std::pair<int, struct sockaddr_storage>;
+
   int sockfd{-1};
   struct addrinfo *getaddrinfo_result{nullptr};
   struct addrinfo *curraddrinfo{nullptr};
@@ -10,6 +15,7 @@ private:
   void close();
   void try_bind();
   void set_socket_options();
+  std::optional<ConnfdAddrPair> handle_accept();
 
 public:
   ~Server();
@@ -23,4 +29,5 @@ public:
   Server &operator=(Server &&) noexcept;
 
   void listen();
+  void run();
 };
