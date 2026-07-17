@@ -52,23 +52,23 @@ void Http1Parser::parse_status_line(HttpConnection *conn, uint8_t *buf,
     return;
   }
 
-  uint8_t *found{static_cast<uint8_t *>(std::memchr(buf, '\n', buf_len))};
+  uint8_t *lf_ptr{static_cast<uint8_t *>(std::memchr(buf, '\n', buf_len))};
 
   auto &status_line_buf{conn->req.header.status_line};
 
-  if (found) {
+  if (lf_ptr) {
     conn->req.stage = RequestParsingStage::headers;
-    std::ptrdiff_t found_len{found - buf};
+    std::ptrdiff_t lf_pos{lf_ptr - buf};
 
-    size_t needed{status_line_buf.size() + found_len};
+    size_t needed{status_line_buf.size() + lf_pos};
     if (status_line_buf.capacity() < needed) {
       status_line_buf.reserve(needed);
     }
-    status_line_buf.insert(status_line_buf.end(), buf, found + 1);
+    status_line_buf.insert(status_line_buf.end(), buf, lf_ptr + 1);
 
-    if (found + 1 < buf + buf_len) {
-      conn->req.header.headers.insert(conn->req.header.headers.end(), found + 1,
-                                      buf + buf_len);
+    if (lf_ptr + 1 < buf + buf_len) {
+      conn->req.header.headers.insert(conn->req.header.headers.end(),
+                                      lf_ptr + 1, buf + buf_len);
     }
     return;
   }
