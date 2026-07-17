@@ -1,8 +1,12 @@
 #include "http1_parser.h"
 #include "http_connection.h"
+#include <algorithm>
+#include <array>
 #include <cerrno>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <sys/types.h>
@@ -10,33 +14,34 @@
 
 ParseResult Http1Parser::decode(HttpConnection *conn) {
   using enum ParseResult;
-  uint8_t buff[64 * 1024];
+  std::array<uint8_t, READ_BUFFER_SIZE> buf{};
   if (!conn) {
     return Error;
   }
 
-  ssize_t size{read(conn->fd, buff, sizeof(buff))};
+  ssize_t len_read{read(conn->fd, buf.data(), buf.size())};
 
-  if (size < 0) {
+  if (len_read < 0) {
     if (errno == EAGAIN) {
       return NeedMoreData;
     }
     throw std::runtime_error("read: " + std::string(strerror(errno)));
   }
 
-  if (size == 0) {
+  if (len_read == 0) {
     return Complete;
   }
 
+  std::span<const uint8_t> buf_span(buf.data(), len_read);
   switch (conn->req.stage) {
   case RequestParsingStage::status_line:
-    Http1Parser::parse_status_line(conn, buff, size);
+    Http1Parser::parse_status_line(conn, buf_span);
     break;
   case RequestParsingStage::headers:
-    Http1Parser::parse_headers(conn, buff, size);
+    Http1Parser::parse_headers(conn, buf_span);
     break;
   case RequestParsingStage::body:
-    Http1Parser::parse_body(conn, buff, size);
+    Http1Parser::parse_body(conn, buf_span);
     break;
   case RequestParsingStage::end:
     return Complete;
@@ -45,38 +50,36 @@ ParseResult Http1Parser::decode(HttpConnection *conn) {
   return NeedMoreData;
 }
 
-void Http1Parser::parse_status_line(HttpConnection *conn, uint8_t *buf,
-                                    ssize_t buf_len) {
-  if (!buf || buf_len <= 0 ||
-      conn->req.stage != RequestParsingStage::status_line) {
+void Http1Parser::parse_status_line(HttpConnection *conn,
+                                    std::span<const uint8_t> buf) {
+  if (buf.empty() || conn->req.stage != RequestParsingStage::status_line) {
     return;
   }
 
-  uint8_t *lf_ptr{static_cast<uint8_t *>(std::memchr(buf, '\n', buf_len))};
-
+  auto lf_pos{std::find(buf.begin(), buf.end(), '\n')};
   auto &status_line_buf{conn->req.header.status_line};
 
-  if (lf_ptr) {
+  if (lf_pos != buf.end()) {
     conn->req.stage = RequestParsingStage::headers;
-    std::ptrdiff_t lf_pos{lf_ptr - buf};
 
-    size_t needed{status_line_buf.size() + lf_pos};
-    if (status_line_buf.capacity() < needed) {
-      status_line_buf.reserve(needed);
-    }
-    status_line_buf.insert(status_line_buf.end(), buf, lf_ptr + 1);
+    status_line_buf.insert(status_line_buf.end(), buf.begin(), lf_pos + 1);
 
-    if (lf_ptr + 1 < buf + buf_len) {
+    if (lf_pos + 1 != buf.end()) {
       conn->req.header.headers.insert(conn->req.header.headers.end(),
-                                      lf_ptr + 1, buf + buf_len);
+                                      lf_pos + 1, buf.end());
     }
     return;
   }
 
-  size_t needed{status_line_buf.size() + buf_len};
-  if (status_line_buf.capacity() < needed) {
-    status_line_buf.reserve(needed);
-  }
-
-  status_line_buf.insert(status_line_buf.end(), buf, buf + buf_len);
+  status_line_buf.insert(status_line_buf.end(), buf.begin(), buf.end());
 }
+
+// void Http1Parser::parse_headers(HttpConnection *conn,
+//                                 std::span<const uint8_t> buff) {
+//   if (!buf || buf_len <= 0 ||
+//       conn->req.stage != RequestParsingStage::status_line) {
+//     return;
+//   }
+
+//   constexpr uint8_t target[] = {'\r', '\n', '\r', '\n'};
+// }
