@@ -2,7 +2,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <sys/socket.h>
+#include <unordered_map>
 #include <vector>
 
 enum class RequestParsingStage {
@@ -12,21 +14,34 @@ enum class RequestParsingStage {
   end,
 };
 
-struct MessageHeader {
+struct RawMessageHeader {
   std::vector<uint8_t> status_line{};
   std::vector<uint8_t> headers{};
 };
 
-struct HttpMessage {
+struct ParsedMessageHeader {
+  std::string method{};
+  std::string path{};
+  std::string version{};
+  std::unordered_map<std::string, std::vector<std::string>> headers{};
+};
+
+struct HttpRequest {
   RequestParsingStage stage{RequestParsingStage::status_line};
-  MessageHeader header{};
+  RawMessageHeader raw_headers{};
+  ParsedMessageHeader parsed_headers{};
   size_t body_len{0};
   std::vector<uint8_t> body{};
 };
 
+struct HttpResponse {
+  RawMessageHeader raw_headers{};
+  std::vector<uint8_t> body{};
+};
+
 struct HttpConnection {
-  HttpMessage req{};
-  HttpMessage resp{};
+  HttpRequest req{};
+  HttpResponse response{};
   struct sockaddr_storage addr;
   int fd{-1};
   bool want_read{false};

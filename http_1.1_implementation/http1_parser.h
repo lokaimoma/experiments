@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstring>
 #include <span>
+#include <string_view>
 #include <sys/types.h>
 
 enum class ParseResult { Complete, NeedMoreData, Error };
@@ -14,6 +15,7 @@ private:
   static void parse_status_line(HttpConnection *, std::span<const uint8_t> buf);
   static void parse_headers(HttpConnection *, std::span<const uint8_t> buf);
   static void parse_body(HttpConnection *, std::span<const uint8_t> buf);
+  static std::string_view trim(std::string_view sv);
 
 public:
   static constexpr int MAX_HEADER_SIZE = 8 * 1024;                // 8KiB

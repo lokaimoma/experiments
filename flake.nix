@@ -15,6 +15,7 @@
         packages = with pkgs; [
           cmake
           gcc
+          clang-tools
         ];
 
         shellHook = ''
