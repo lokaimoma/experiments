@@ -1,6 +1,5 @@
 #include "server.h"
 #include "http_connection.h"
-#include <algorithm>
 #include <arpa/inet.h>
 #include <cerrno>
 #include <cstdio>
@@ -18,6 +17,7 @@
 #include <sys/poll.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -174,19 +174,18 @@ auto Server::handle_accept() -> std::optional<ConnfdAddrPair> {
 }
 
 void Server::run() {
-  std::vector<std::unique_ptr<HttpConnection>> connections{};
+  std::unordered_map<int, std::unique_ptr<HttpConnection>> fd_to_conn{};
   std::vector<struct pollfd> pollfds{};
-  size_t closed_connections{0};
 
   while (true) {
     pollfds.clear();
-    pollfds.reserve(connections.size() + 1);
+    pollfds.reserve(fd_to_conn.size() + 1);
+
     pollfds.emplace_back(sockfd, POLLIN, 0);
 
-    for (auto &conn : connections) {
-      if (!conn) {
-        continue;
-      }
+    for (auto &fd_conn_pair : fd_to_conn) {
+      auto &fd{fd_conn_pair.first};
+      auto &conn{fd_conn_pair.second};
 
       struct pollfd pfd{conn->fd, 0, 0};
       if (conn->want_read)
@@ -201,27 +200,32 @@ void Server::run() {
       throw std::runtime_error("poll failed: " + std::string(strerror(errno)));
     }
 
-    if (pollfds[0].revents) {
+    if (pollfds[LISTEN_SOCKET_INDEX].revents) {
       if (auto connfd_addr_pair_ = handle_accept()) {
         auto connfd_addr_pair{connfd_addr_pair_.value()};
-        if (connections.capacity() <= connfd_addr_pair.first) {
-          connections.resize(connfd_addr_pair.first + 1);
-        }
-        connections[connfd_addr_pair.first] = std::make_unique<HttpConnection>(
-            HttpConnection{.addr = connfd_addr_pair.second,
-                           .fd = connfd_addr_pair.first,
-                           .want_read = true});
+
+        fd_to_conn.insert({connfd_addr_pair.first,
+                           std::make_unique<HttpConnection>(
+                               HttpConnection{.addr = connfd_addr_pair.second,
+                                              .fd = connfd_addr_pair.first,
+                                              .want_read = true})});
       }
     }
 
-    for (size_t i = 1; i < pollfds.size(); ++i) {
+    for (size_t i = LISTEN_SOCKET_INDEX + 1; i < pollfds.size(); ++i) {
       auto &pfd = pollfds[i];
       if (pfd.revents == 0)
         continue;
 
-      auto &conn = connections[pfd.fd];
-      if (!conn)
+      if (!fd_to_conn.contains(pfd.fd))
         continue;
+
+      auto &connfd_addr_pair = fd_to_conn[pfd.fd];
+      auto &conn{connfd_addr_pair};
+      if (!conn) {
+        fd_to_conn.erase(pfd.fd);
+        continue;
+      }
 
       if (pfd.revents & POLLIN) {
         // handle_read(*conn);
@@ -233,17 +237,9 @@ void Server::run() {
 
       if ((pfd.revents & (POLLHUP | POLLERR)) || conn->want_close) {
         ::close(conn->fd);
-        conn.reset(nullptr);
-        closed_connections++;
+        fd_to_conn.erase(conn->fd);
         continue;
       }
-    }
-
-    if (closed_connections > 1000) {
-      connections.erase(
-          std::remove(connections.begin(), connections.end(), nullptr),
-          connections.end());
-      closed_connections = 0;
     }
   }
 }

@@ -8,6 +8,8 @@
 
 class Server {
 private:
+  constexpr static size_t LISTEN_SOCKET_INDEX = 0;
+
   using ConnfdAddrPair = std::pair<int, struct sockaddr_storage>;
 
   int sockfd{-1};
