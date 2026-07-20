@@ -1,30 +1,8 @@
 # HTTP/1.1 Implementation — Code Review Findings
 
-> Review date: 2026-07-18
+> Review date: 2026-07-20
 > Scope: All files under `http_1.1_implementation/`
 > Note: This is a learning project — the goal is to identify issues, not fix them.
-
----
-
-## `http1_parser.cpp` — Parser Implementation
-
-### 1. Both `from_chars` error branches still separate
-`result_out_of_range` and `invalid_argument` branches have different messages now but follow the same pattern. They can be consolidated into a single check: `if (ec != std::errc{})`.
-
-### 2. Transfer-Encoding only handles `"chunked"` — no fallback
-If `Transfer-Encoding` is present but `"chunked"` is not found in the value, `content_len` stays 0 and a "411 Length Required" error is thrown even when a valid non-chunked encoding was specified. HTTP/1.1 allows other transfer-codings. RFC 9112 §6.1 requires handling unknown transfer-codings with a `501 Not Implemented`.
-
-### 3. Duplicate `Content-Length` not validated
-If multiple `Content-Length` headers with different values are received, the first one is used and the rest are appended to the vector. Per RFC 9112 §6.4.2, duplicate `Content-Length` headers with different values must be treated as an error.
-
-### 4. Typo: `"unsupported http vesion"` → `"version"`
-Error message in `parse_status_line` still reads `"unsupported http vesion.Send 400 Bad request instead of throw."`
-
-### 5. Spurious semicolon on its own line
-A standalone `;` before the pipeline declaration in `parse_status_line`. Harmless but likely unintentional.
-
-### 6. Error strategy: all failures throw exceptions
-Every error case (`throw std::runtime_error(...)`) bypasses the caller's control flow and propagates up to `main()` where it terminates the program. For an HTTP server, errors during parsing should produce HTTP error responses (400, 413, 501), not crash the process. The comments acknowledge this (e.g., "To-do: Replace with HTTP error response").
 
 ---
 
@@ -85,6 +63,6 @@ The other projects compile tests with `-fsanitize=address,undefined`. This subpr
 | Severity | Count | Key Issues |
 |----------|-------|------------|
 | **Bug** | 2 | #8 (capacity vs size), #9 (server.run never called) |
-| **Design** | 6 | #1 (from_chars), #2 (transfer-encoding fallback), #3 (dup content-length), #6 (error strategy), #10 (sparse vector), #12 |
+| **Design** | 2 | #10 (sparse vector), #12 |
 | **Missing** | 2 | #17 (no tests), #18 (no sanitizers) |
-| **Minor** | 5 | #4 (typo), #5 (stray semicolon), #7 (raw pointer), #13, #14 |
+| **Minor** | 3 | #7 (raw pointer), #13, #14 |
