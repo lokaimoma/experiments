@@ -8,11 +8,7 @@
 
 ## `server.h` — Server Interface
 
-### 7. `getaddrinfo_result` is still a raw owning pointer
-Allocated by `getaddrinfo()` and freed by `freeaddrinfo()` in `close()`. If an exception is thrown between construction and destruction, the leak risk is low since the destructor calls `close()`, but using `std::unique_ptr` with a custom deleter would make it exception-safe by construction.
-
 ---
-
 ## `server.cpp` — Server Event Loop
 
 ### 8. (BUG) `connections.capacity()` used where `size()` is intended
@@ -65,4 +61,4 @@ The other projects compile tests with `-fsanitize=address,undefined`. This subpr
 | **Bug** | 2 | #8 (capacity vs size), #9 (server.run never called) |
 | **Design** | 2 | #10 (sparse vector), #12 |
 | **Missing** | 2 | #17 (no tests), #18 (no sanitizers) |
-| **Minor** | 3 | #7 (raw pointer), #13, #14 |
+| **Minor** | 2 | #13, #14 |

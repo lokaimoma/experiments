@@ -26,10 +26,6 @@ void fd_set_nonblock(int fd) {
 }
 
 void Server::close() noexcept {
-  if (getaddrinfo_result) {
-    freeaddrinfo(getaddrinfo_result);
-    getaddrinfo_result = nullptr;
-  }
   if (sockfd != -1) {
     ::close(sockfd);
     sockfd = -1;
@@ -39,16 +35,16 @@ void Server::close() noexcept {
 Server::~Server() { close(); }
 
 Server::Server(Server &&s) noexcept
-    : sockfd{s.sockfd}, getaddrinfo_result{s.getaddrinfo_result} {
-  s.close();
+    : sockfd{s.sockfd}, getaddrinfo_result{std::move(s.getaddrinfo_result)} {
+  s.sockfd = -1;
 }
 
 Server &Server::operator=(Server &&s) noexcept {
   if (this != &s) {
     close();
     sockfd = s.sockfd;
-    getaddrinfo_result = s.getaddrinfo_result;
-    s.close();
+    getaddrinfo_result = std::move(s.getaddrinfo_result);
+    s.sockfd = -1;
   }
   return *this;
 }
@@ -71,7 +67,7 @@ void Server::set_socket_options() {
 void Server::try_bind() {
 
   struct addrinfo *curraddrinfo{nullptr};
-  for (curraddrinfo = getaddrinfo_result; curraddrinfo != nullptr;
+  for (curraddrinfo = getaddrinfo_result.get(); curraddrinfo != nullptr;
        curraddrinfo = curraddrinfo->ai_next) {
     sockfd = socket(curraddrinfo->ai_family, curraddrinfo->ai_socktype,
                     curraddrinfo->ai_protocol);
@@ -104,10 +100,12 @@ Server::Server(std::string port) {
   addr_hints.ai_protocol = IPPROTO_TCP;
   addr_hints.ai_flags = AI_PASSIVE;
 
-  int res{getaddrinfo(nullptr, port.data(), &addr_hints, &getaddrinfo_result)};
+  struct addrinfo *addr_info{nullptr};
+  int res{getaddrinfo(nullptr, port.data(), &addr_hints, &addr_info)};
   if (res != 0) {
     throw std::runtime_error("getaddrinfo: " + std::string(gai_strerror(res)));
   }
+  getaddrinfo_result.reset(addr_info);
 
   try_bind();
 }

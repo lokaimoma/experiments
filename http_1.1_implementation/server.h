@@ -1,4 +1,6 @@
 #pragma once
+#include <memory>
+#include <netdb.h>
 #include <optional>
 #include <string>
 #include <sys/socket.h>
@@ -9,7 +11,8 @@ private:
   using ConnfdAddrPair = std::pair<int, struct sockaddr_storage>;
 
   int sockfd{-1};
-  struct addrinfo *getaddrinfo_result{nullptr};
+  std::unique_ptr<struct addrinfo, decltype(&::freeaddrinfo)>
+      getaddrinfo_result{nullptr, &::freeaddrinfo};
 
   void close() noexcept;
   void try_bind();
