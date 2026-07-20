@@ -25,20 +25,21 @@ void fd_set_nonblock(int fd) {
   fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
 }
 
-void Server::close() {
+void Server::close() noexcept {
   if (getaddrinfo_result) {
     freeaddrinfo(getaddrinfo_result);
+    getaddrinfo_result = nullptr;
   }
   if (sockfd != -1) {
     ::close(sockfd);
+    sockfd = -1;
   }
 }
 
 Server::~Server() { close(); }
 
 Server::Server(Server &&s) noexcept
-    : sockfd{s.sockfd}, getaddrinfo_result{s.getaddrinfo_result},
-      curraddrinfo{s.curraddrinfo} {
+    : sockfd{s.sockfd}, getaddrinfo_result{s.getaddrinfo_result} {
   s.close();
 }
 
@@ -47,7 +48,6 @@ Server &Server::operator=(Server &&s) noexcept {
     close();
     sockfd = s.sockfd;
     getaddrinfo_result = s.getaddrinfo_result;
-    curraddrinfo = s.curraddrinfo;
     s.close();
   }
   return *this;
@@ -70,6 +70,7 @@ void Server::set_socket_options() {
 
 void Server::try_bind() {
 
+  struct addrinfo *curraddrinfo{nullptr};
   for (curraddrinfo = getaddrinfo_result; curraddrinfo != nullptr;
        curraddrinfo = curraddrinfo->ai_next) {
     sockfd = socket(curraddrinfo->ai_family, curraddrinfo->ai_socktype,
@@ -120,14 +121,16 @@ void Server::listen() {
   std::string addr_str(INET6_ADDRSTRLEN, '\0');
   void *raw_addr{nullptr};
 
-  if (curraddrinfo->ai_family == AF_INET) {
-    raw_addr = &((struct sockaddr_in *)curraddrinfo->ai_addr)->sin_addr;
+  struct sockaddr_storage addr{};
+  socklen_t len{sizeof(addr)};
+  getsockname(sockfd, (struct sockaddr *)&addr, &len);
+  if (addr.ss_family == AF_INET) {
+    raw_addr = &((struct sockaddr_in *)&addr)->sin_addr;
   } else {
-    raw_addr = &((struct sockaddr_in6 *)curraddrinfo->ai_addr)->sin6_addr;
+    raw_addr = &((struct sockaddr_in6 *)&addr)->sin6_addr;
   }
 
-  if (inet_ntop(curraddrinfo->ai_family, raw_addr, addr_str.data(),
-                INET6_ADDRSTRLEN)) {
+  if (inet_ntop(addr.ss_family, raw_addr, addr_str.data(), INET6_ADDRSTRLEN)) {
     std::cout << "listening on " << addr_str << '\n';
   } else {
     perror("inet_ntop");

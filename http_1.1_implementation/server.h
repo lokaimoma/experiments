@@ -10,9 +10,8 @@ private:
 
   int sockfd{-1};
   struct addrinfo *getaddrinfo_result{nullptr};
-  struct addrinfo *curraddrinfo{nullptr};
 
-  void close();
+  void close() noexcept;
   void try_bind();
   void set_socket_options();
   std::optional<ConnfdAddrPair> handle_accept();

@@ -16,6 +16,7 @@
           cmake
           gcc
           clang-tools
+          cmake-language-server
         ];
 
         shellHook = ''
