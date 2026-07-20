@@ -21,6 +21,7 @@
 
 ParseResult Http1Parser::decode(HttpConnection *conn) {
   using enum ParseResult;
+
   std::array<uint8_t, READ_BUFFER_SIZE> buf{};
   if (!conn) {
     return Error;
@@ -32,6 +33,7 @@ ParseResult Http1Parser::decode(HttpConnection *conn) {
     if (errno == EAGAIN) {
       return NeedMoreData;
     }
+
     throw std::runtime_error("read: " + std::string(strerror(errno)));
   }
 
@@ -40,16 +42,20 @@ ParseResult Http1Parser::decode(HttpConnection *conn) {
   }
 
   std::span<const uint8_t> buf_span(buf.data(), len_read);
+
   switch (conn->req.stage) {
   case RequestParsingStage::status_line:
     Http1Parser::parse_status_line(conn, buf_span);
     break;
+
   case RequestParsingStage::headers:
     Http1Parser::parse_headers(conn, buf_span);
     break;
+
   case RequestParsingStage::body:
     Http1Parser::parse_body(conn, buf_span);
     break;
+
   case RequestParsingStage::end:
     return Complete;
   }
@@ -78,11 +84,13 @@ void Http1Parser::parse_status_line(HttpConnection *conn,
     ;
     auto pipeline{
         status_line_view | std::views::split(' ') |
+
         std::views::transform([](auto &&subrange) {
           auto first = &*subrange.begin();
           auto size = static_cast<size_t>(std::ranges::distance(subrange));
           return trim(std::string_view(first, size));
         }) |
+
         std::views::filter([](std::string_view s) { return !s.empty(); }) |
         std::views::take(3)};
 
@@ -131,6 +139,7 @@ void Http1Parser::parse_headers(HttpConnection *conn,
   }
 
   auto &headers_buf{conn->req.raw_headers};
+
   if (headers_buf.size() + buf.size() > MAX_HEADER_SIZE) {
     throw std::runtime_error("header too large. To Be Updated to write the "
                              "error to the response and close the connection.");
@@ -143,6 +152,7 @@ void Http1Parser::parse_headers(HttpConnection *conn,
 
   if (carriage_ret_pos != buf.end()) {
     conn->req.stage = RequestParsingStage::body;
+
     headers_buf.insert(headers_buf.end(), buf.begin(),
                        carriage_ret_pos + target.size());
 
@@ -153,22 +163,27 @@ void Http1Parser::parse_headers(HttpConnection *conn,
                                   headers_buf.size()};
 
     auto crlf_pos{headers_view.find("\r\n")};
+
     while (crlf_pos != std::string_view::npos) {
       auto line{headers_view.substr(0, crlf_pos)};
       auto colon_pos{line.find(":")};
+
       if (colon_pos == std::string_view::npos) {
         // TODO: Replace throw with an HTTP error
         throw std::runtime_error(
             "Invalid header value: " + std::string(line) +
             ". An http error will be thrown instead of this.");
       }
+
       std::string k{trim(line.substr(0, colon_pos))};
       tolowercase(k);
       std::string v{trim(line.substr(colon_pos + 1))};
+
       if (!headers.contains(k)) {
         headers.insert({k, std::vector<std::string>{v}});
         continue;
       }
+
       headers[k].push_back(v);
     }
 
@@ -178,6 +193,7 @@ void Http1Parser::parse_headers(HttpConnection *conn,
     auto &req_method{req.method};
 
     size_t content_len{0};
+
     if (req_method == "POST" || req_method == "PATCH" || req_method == "PUT") {
       if (headers.contains("transfer-encoding") &&
           headers["transfer-encoding"][0].find("chunked") !=
@@ -187,6 +203,7 @@ void Http1Parser::parse_headers(HttpConnection *conn,
         auto &cn{headers["content-length"][0]};
         auto [ptr, ec] =
             std::from_chars(cn.data(), cn.data() + cn.size(), content_len);
+
         if (ec == std::errc::result_out_of_range) {
           throw std::runtime_error(
               "content length out of range of a valid integer; send bad "
