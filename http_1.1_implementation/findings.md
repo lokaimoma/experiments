@@ -15,10 +15,6 @@
 In `main.cpp`, `server.listen()` is called but `server.run()` is not. The program prints the listening address and exits immediately. The server never enters the event loop.
 
 ### 12. `TCP_NODELAY` set on listening socket instead of accepted connections
-`setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, ...)` disables Nagle's algorithm on the listening socket. This should be set on each accepted connection socket instead. While Linux typically inherits socket options on `accept()`, this is not guaranteed across all platforms.
-
-### 13. Potential fd leak if `std::make_unique<HttpConnection>` throws
-In the accept handler: if `std::make_unique<HttpConnection>(...)` throws (e.g., out of memory), the accepted `connfd` is never closed. The fd is still held in `connfd_addr_pair`, but that's a local `pair<int, ...>` whose destructor is trivial — it won't close the fd.
 
 ---
 
@@ -46,4 +42,3 @@ The other projects compile tests with `-fsanitize=address,undefined`. This subpr
 | **Bug** | 1 | #9 (server.run never called) |
 | **Design** | 1 | #12 |
 | **Missing** | 2 | #17 (no tests), #18 (no sanitizers) |
-| **Minor** | 1 | #13 |

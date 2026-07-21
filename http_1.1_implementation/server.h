@@ -1,4 +1,5 @@
 #pragma once
+#include "unique_fd.h"
 #include <memory>
 #include <netdb.h>
 #include <optional>
@@ -10,27 +11,24 @@ class Server {
 private:
   constexpr static size_t LISTEN_SOCKET_INDEX = 0;
 
-  using ConnfdAddrPair = std::pair<int, struct sockaddr_storage>;
+  using ConnfdAddrPair = std::pair<UniqueFd, struct sockaddr_storage>;
 
-  int sockfd{-1};
+  UniqueFd sockfd{};
   std::unique_ptr<struct addrinfo, decltype(&::freeaddrinfo)>
       getaddrinfo_result{nullptr, &::freeaddrinfo};
 
-  void close() noexcept;
   void try_bind();
   void set_socket_options();
   std::optional<ConnfdAddrPair> handle_accept();
 
 public:
-  ~Server();
-
   explicit Server(std::string port = "0");
 
   Server(const Server &) = delete;
   Server &operator=(const Server &) = delete;
 
-  Server(Server &&) noexcept;
-  Server &operator=(Server &&) noexcept;
+  Server(Server &&) noexcept = default;
+  Server &operator=(Server &&) noexcept = default;
 
   void listen();
   void run();

@@ -31,4 +31,6 @@ struct UniqueFd {
   }
 
   int release() noexcept { return std::exchange(fd, -1); };
+
+  operator int() const { return fd; };
 };

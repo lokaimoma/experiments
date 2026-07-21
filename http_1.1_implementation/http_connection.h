@@ -1,5 +1,6 @@
 #pragma once
 
+#include "unique_fd.h"
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -36,7 +37,7 @@ struct HttpConnection {
   HttpRequest req{};
   HttpResponse response{};
   struct sockaddr_storage addr;
-  int fd{-1};
+  UniqueFd fd{};
   bool want_read{false};
   bool want_write{false};
   bool want_close{false};

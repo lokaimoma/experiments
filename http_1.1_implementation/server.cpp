@@ -1,5 +1,6 @@
 #include "server.h"
 #include "http_connection.h"
+#include "unique_fd.h"
 #include <arpa/inet.h>
 #include <cerrno>
 #include <cstdio>
@@ -25,30 +26,6 @@ void fd_set_nonblock(int fd) {
   fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
 }
 
-void Server::close() noexcept {
-  if (sockfd != -1) {
-    ::close(sockfd);
-    sockfd = -1;
-  }
-}
-
-Server::~Server() { close(); }
-
-Server::Server(Server &&s) noexcept
-    : sockfd{s.sockfd}, getaddrinfo_result{std::move(s.getaddrinfo_result)} {
-  s.sockfd = -1;
-}
-
-Server &Server::operator=(Server &&s) noexcept {
-  if (this != &s) {
-    close();
-    sockfd = s.sockfd;
-    getaddrinfo_result = std::move(s.getaddrinfo_result);
-    s.sockfd = -1;
-  }
-  return *this;
-}
-
 void Server::set_socket_options() {
   int opt{1};
   int res{setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))};
@@ -69,8 +46,8 @@ void Server::try_bind() {
   struct addrinfo *curraddrinfo{nullptr};
   for (curraddrinfo = getaddrinfo_result.get(); curraddrinfo != nullptr;
        curraddrinfo = curraddrinfo->ai_next) {
-    sockfd = socket(curraddrinfo->ai_family, curraddrinfo->ai_socktype,
-                    curraddrinfo->ai_protocol);
+    sockfd.reset(socket(curraddrinfo->ai_family, curraddrinfo->ai_socktype,
+                        curraddrinfo->ai_protocol));
     if (sockfd == -1) {
       perror("try_bind:socket");
       continue;
@@ -81,8 +58,7 @@ void Server::try_bind() {
     int res{::bind(sockfd, curraddrinfo->ai_addr, curraddrinfo->ai_addrlen)};
     if (res == -1) {
       perror("try_bind:bind");
-      ::close(sockfd);
-      sockfd = -1;
+      sockfd.reset();
       continue;
     }
     break;
@@ -140,7 +116,7 @@ void Server::listen() {
 auto Server::handle_accept() -> std::optional<ConnfdAddrPair> {
   struct sockaddr_storage connaddr;
   socklen_t connaddrlen{sizeof(struct sockaddr_storage)};
-  int connfd = accept(sockfd, (struct sockaddr *)&connaddr, &connaddrlen);
+  UniqueFd connfd{accept(sockfd, (struct sockaddr *)&connaddr, &connaddrlen)};
 
   if (connfd == -1) {
     switch (errno) {
@@ -170,7 +146,7 @@ auto Server::handle_accept() -> std::optional<ConnfdAddrPair> {
   // }
   fd_set_nonblock(connfd);
 
-  return ConnfdAddrPair{connfd, connaddr};
+  return ConnfdAddrPair{std::move(connfd), connaddr};
 }
 
 void Server::run() {
@@ -202,13 +178,13 @@ void Server::run() {
 
     if (pollfds[LISTEN_SOCKET_INDEX].revents) {
       if (auto connfd_addr_pair_ = handle_accept()) {
-        auto connfd_addr_pair{connfd_addr_pair_.value()};
+        auto connfd_addr_pair{std::move(connfd_addr_pair_.value())};
+        int fd{connfd_addr_pair.first};
 
-        fd_to_conn.insert({connfd_addr_pair.first,
-                           std::make_unique<HttpConnection>(
-                               HttpConnection{.addr = connfd_addr_pair.second,
-                                              .fd = connfd_addr_pair.first,
-                                              .want_read = true})});
+        fd_to_conn.insert({fd, std::make_unique<HttpConnection>(HttpConnection{
+                                   .addr = connfd_addr_pair.second,
+                                   .fd = std::move(connfd_addr_pair.first),
+                                   .want_read = true})});
       }
     }
 
@@ -236,7 +212,6 @@ void Server::run() {
       }
 
       if ((pfd.revents & (POLLHUP | POLLERR)) || conn->want_close) {
-        ::close(conn->fd);
         fd_to_conn.erase(conn->fd);
         continue;
       }
