@@ -167,9 +167,18 @@ void Http1Parser::read_headers(HttpConnection &conn,
     }
 
     if (double_crlf_pos + double_crlf_pattern.size() != buf.end()) {
-      conn.req.body.insert(conn.req.body.end(),
-                           double_crlf_pos + double_crlf_pattern.size(),
-                           buf.end());
+      size_t rem_data{static_cast<size_t>(
+          buf.end() - (double_crlf_pos + double_crlf_pattern.size()))};
+
+      if (rem_data <= conn.req.body_len) {
+        conn.req.body.insert(conn.req.body.end(),
+                             double_crlf_pos + double_crlf_pattern.size(),
+                             buf.end());
+      } else {
+        // Todo: 422 Unprocessable Entity
+        throw std::runtime_error(
+            "422 Unprocessable Entity. Large or Trailing Data");
+      }
     }
 
     return;

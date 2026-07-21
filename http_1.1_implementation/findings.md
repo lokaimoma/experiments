@@ -19,9 +19,6 @@ In `main.cpp`, `server.listen()` is called but `server.run()` is not. The progra
 
 ## `http1_parser.cpp` — Parser
 
-### 20. Body data after `\r\n\r\n` bypasses `body_len` overflow check
-In `read_headers` (`http1_parser.cpp:169-173`), data remaining in the buffer after the header boundary is inserted directly into `conn.req.body` without checking whether it exceeds `body_len`. The overflow check in `read_body` is only reached on the *next* `decode()` call, so the body can over-allocate before the error fires.
-
 ### 21. Chunked Transfer-Encoding not decoded
 For `TE: chunked`, `body_len` is set to `MAX_BODY_LEN` and raw bytes are dumped verbatim into `conn.req.body`. Chunk-size hex lines, CRLFs, and trailing headers all become part of the body data. There is no dechunking loop, and `body_len` conflates "expected decoded size" with "max raw-read limit."
 
@@ -93,5 +90,5 @@ The other projects compile tests with `-fsanitize=address,undefined`. This subpr
 
 | Severity | Count | Key Issues |
 |----------|-------|------------|
-| **Bug** | 2 | #9 (server.run never called), #20 (body data bypasses overflow check) |
+| **Bug** | 1 | #9 (server.run never called) |
 | **Missing** | 15 | #16 (no graceful shutdown), #17 (no tests), #18 (no sanitizers), #21 (chunked decoding), #22 (TE validation), #23 (parse_body not defined), #24 (body_encoding dead field), #25 (Content-Encoding), #26 (Expect: 100-continue), #27 (error responses), #28 (MAX_BODY_LEN arbitrary), #29 (URI validation), #30 (pipelining), #31 (connection persistence), #32 (encode unimplemented) |
