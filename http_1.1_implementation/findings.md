@@ -22,8 +22,8 @@ In `main.cpp`, `server.listen()` is called but `server.run()` is not. The progra
 ### 21. Chunked Transfer-Encoding not decoded
 For `TE: chunked`, `body_len` is set to `MAX_BODY_LEN` and raw bytes are dumped verbatim into `conn.req.body`. Chunk-size hex lines, CRLFs, and trailing headers all become part of the body data. There is no dechunking loop, and `body_len` conflates "expected decoded size" with "max raw-read limit."
 
-### 22. Transfer-Encoding: chunked must be the final coding
-RFC 7230 §3.3.1 requires chunked to be the last transfer coding (e.g. `TE: gzip, chunked` is valid, `TE: chunked, gzip` is not). The code only checks whether `"chunked"` is a substring of the first TE value — it doesn't validate ordering or reject invalid combinations.
+### 22. Transfer-Encoding: only strict `"chunked"` accepted, multi-value rejected
+The code now rejects any non-`"chunked"` Transfer-Encoding with 501. This is a deliberate simplification — `TE: gzip, chunked` (valid per RFC 7230 §3.3.1) would be rejected despite being compliant. A future `parse_body` step would need to handle multi-value transfer codings.
 
 ---
 
@@ -36,10 +36,6 @@ RFC 7230 §3.3.1 requires chunked to be the last transfer coding (e.g. `TE: gzip
 
 ## `http_connection.h` — Data Structures
 
-### 24. `body_encoding` field never populated
-`HttpRequest::body_encoding` (`http_connection.h:28`) is declared as `std::optional<std::string>` but never set. The comment `// set req.body_encoding here` in the chunked branch (`http1_parser.cpp:226`) is a no-op. Moreover, `body_encoding` should represent *content* encoding (gzip, br), not *transfer* encoding (chunked) — the naming and placement conflate the two concepts.
-
----
 
 ## General — Cross-cutting Concerns
 
@@ -91,4 +87,4 @@ The other projects compile tests with `-fsanitize=address,undefined`. This subpr
 | Severity | Count | Key Issues |
 |----------|-------|------------|
 | **Bug** | 1 | #9 (server.run never called) |
-| **Missing** | 15 | #16 (no graceful shutdown), #17 (no tests), #18 (no sanitizers), #21 (chunked decoding), #22 (TE validation), #23 (parse_body not defined), #24 (body_encoding dead field), #25 (Content-Encoding), #26 (Expect: 100-continue), #27 (error responses), #28 (MAX_BODY_LEN arbitrary), #29 (URI validation), #30 (pipelining), #31 (connection persistence), #32 (encode unimplemented) |
+| **Missing** | 14 | #16 (no graceful shutdown), #17 (no tests), #18 (no sanitizers), #21 (chunked decoding), #22 (TE validation), #23 (parse_body not defined), #25 (Content-Encoding), #26 (Expect: 100-continue), #27 (error responses), #28 (MAX_BODY_LEN arbitrary), #29 (URI validation), #30 (pipelining), #31 (connection persistence), #32 (encode unimplemented) |

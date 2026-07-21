@@ -26,6 +26,7 @@ struct HttpRequest {
   std::unordered_map<std::string, std::vector<std::string>> headers{};
   size_t body_len{0};
   std::optional<std::string> body_encoding{};
+  bool is_body_chunked{false};
   std::vector<uint8_t> body{};
 };
 

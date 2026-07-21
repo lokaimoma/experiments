@@ -239,11 +239,14 @@ void Http1Parser::parse_headers(HttpConnection &conn) {
     auto required_body_len_headers_found{false};
     if (headers.contains("transfer-encoding")) {
 
-      if (headers["transfer-encoding"][0].find("chunked") !=
-          std::string::npos) {
-        // set req.body_encoding here
+      // if transfer-encoding is present we only handle strict value of chunked,
+      // nothing else
+      auto te{headers["transfer-encoding"][0]};
+      tolowercase(te);
+      if (te == "chunked") {
         body_len = MAX_BODY_LEN;
         required_body_len_headers_found = true;
+        conn.req.is_body_chunked = true;
       } else {
         // To-do: 501 not implemented
         throw std::runtime_error("501 not implemented");
@@ -282,6 +285,11 @@ void Http1Parser::parse_headers(HttpConnection &conn) {
       // To-do: 413: Content Too Large
       throw std::runtime_error("413: Content Too Large");
     }
+
+    if (headers.contains("content-encoding")) {
+      // validation of this encoding will be done later when parsing body
+      conn.req.body_encoding = headers["content-encoding"][0];
+    }
   }
 }
 
@@ -291,7 +299,7 @@ void Http1Parser::read_body(HttpConnection &conn,
     return;
   }
 
-  auto &headers{conn.req.headers};
+  auto &req{conn.req};
   auto &body_buf{conn.req.body};
   auto body_len{conn.req.body_len};
 
