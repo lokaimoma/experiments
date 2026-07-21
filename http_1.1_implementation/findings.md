@@ -19,6 +19,15 @@ In `main.cpp`, `server.listen()` is called but `server.run()` is not. The progra
 
 ## `http1_parser.cpp` — Parser
 
+### 20. (BUG) Delimiter spanning reads not handled
+Multi-byte delimiters (`\r\n\r\n`, `\r\n`) are searched only within the current `buf`, never across accumulated data. If a delimiter straddles two `read()` calls, the parser appends partial data to `raw_headers` or `raw_status_line` without rechecking for the complete delimiter. The program either hangs (waiting for the delimiter that already arrived across two reads) or proceeds with incomplete data.
+
+Affected functions:
+- `read_headers` — searches `buf` for `\r\n\r\n` instead of the accumulated `raw_headers`
+- Future chunked `size` sub-stage — `\r\n` on chunk-size lines will have the same problem
+
+Not affected: `read_status_line` — searches for single-byte `\n`, which cannot straddle two reads.
+
 ### 21. Chunked Transfer-Encoding not decoded
 For `TE: chunked`, `body_len` is set to `MAX_BODY_LEN` and raw bytes are dumped verbatim into `conn.req.body`. Chunk-size hex lines, CRLFs, and trailing headers all become part of the body data. There is no dechunking loop, and `body_len` conflates "expected decoded size" with "max raw-read limit."
 
@@ -86,5 +95,5 @@ The other projects compile tests with `-fsanitize=address,undefined`. This subpr
 
 | Severity | Count | Key Issues |
 |----------|-------|------------|
-| **Bug** | 1 | #9 (server.run never called) |
+| **Bug** | 2 | #9 (server.run never called), #20 (delimiter spanning reads) |
 | **Missing** | 14 | #16 (no graceful shutdown), #17 (no tests), #18 (no sanitizers), #21 (chunked decoding), #22 (TE validation), #23 (parse_body not defined), #25 (Content-Encoding), #26 (Expect: 100-continue), #27 (error responses), #28 (MAX_BODY_LEN arbitrary), #29 (URI validation), #30 (pipelining), #31 (connection persistence), #32 (encode unimplemented) |
