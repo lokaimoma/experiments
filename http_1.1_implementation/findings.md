@@ -19,9 +19,6 @@ In `main.cpp`, `server.listen()` is called but `server.run()` is not. The progra
 
 ## `http1_parser.cpp` — Parser
 
-### 19. `Content-Length: 0` incorrectly rejected for POST/PATCH/PUT
-The check `if (body_len == 0) throw 411` (`http1_parser.cpp:256`) catches `Content-Length: 0`, which is a perfectly valid way to signal an empty request body. The 411 should only fire when *neither* `Content-Length` nor `Transfer-Encoding` is present.
-
 ### 20. Body data after `\r\n\r\n` bypasses `body_len` overflow check
 In `read_headers` (`http1_parser.cpp:169-173`), data remaining in the buffer after the header boundary is inserted directly into `conn.req.body` without checking whether it exceeds `body_len`. The overflow check in `read_body` is only reached on the *next* `decode()` call, so the body can over-allocate before the error fires.
 
@@ -96,5 +93,5 @@ The other projects compile tests with `-fsanitize=address,undefined`. This subpr
 
 | Severity | Count | Key Issues |
 |----------|-------|------------|
-| **Bug** | 3 | #9 (server.run never called), #19 (Content-Length: 0 rejection), #20 (body data bypasses overflow check) |
+| **Bug** | 2 | #9 (server.run never called), #20 (body data bypasses overflow check) |
 | **Missing** | 15 | #16 (no graceful shutdown), #17 (no tests), #18 (no sanitizers), #21 (chunked decoding), #22 (TE validation), #23 (parse_body not defined), #24 (body_encoding dead field), #25 (Content-Encoding), #26 (Expect: 100-continue), #27 (error responses), #28 (MAX_BODY_LEN arbitrary), #29 (URI validation), #30 (pipelining), #31 (connection persistence), #32 (encode unimplemented) |

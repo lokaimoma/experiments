@@ -227,12 +227,14 @@ void Http1Parser::parse_headers(HttpConnection &conn) {
   size_t &body_len{req.body_len};
 
   if (req_method == "POST" || req_method == "PATCH" || req_method == "PUT") {
+    auto required_body_len_headers_found{false};
     if (headers.contains("transfer-encoding")) {
 
       if (headers["transfer-encoding"][0].find("chunked") !=
           std::string::npos) {
         // set req.body_encoding here
         body_len = MAX_BODY_LEN;
+        required_body_len_headers_found = true;
       } else {
         // To-do: 501 not implemented
         throw std::runtime_error("501 not implemented");
@@ -251,6 +253,7 @@ void Http1Parser::parse_headers(HttpConnection &conn) {
         }
       }
 
+      required_body_len_headers_found = true;
       auto &cn{content_length_vec[0]};
       auto [ptr, ec] =
           std::from_chars(cn.data(), cn.data() + cn.size(), body_len);
@@ -261,7 +264,7 @@ void Http1Parser::parse_headers(HttpConnection &conn) {
       }
     }
 
-    if (body_len == 0) {
+    if (body_len == 0 && !required_body_len_headers_found) {
       // To-do: 411: Length required error response
       throw std::runtime_error("411: Length required error");
     }
