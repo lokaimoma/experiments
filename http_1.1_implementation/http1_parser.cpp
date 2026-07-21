@@ -189,7 +189,10 @@ void Http1Parser::parse_headers(HttpConnection &conn) {
   auto crlf_pos{headers_view.find("\r\n")};
 
   while (crlf_pos != std::string_view::npos) {
-    auto line{headers_view.substr(0, crlf_pos)};
+    auto line{trim(headers_view.substr(0, crlf_pos))};
+    if (line.empty()) {
+      break;
+    }
     auto colon_pos{line.find(":")};
 
     if (colon_pos == std::string_view::npos) {
@@ -205,10 +208,15 @@ void Http1Parser::parse_headers(HttpConnection &conn) {
 
     if (!headers.contains(k)) {
       headers.insert({k, std::vector<std::string>{v}});
-      continue;
+    } else {
+      headers[k].push_back(v);
     }
 
-    headers[k].push_back(v);
+    if (crlf_pos + 2 >= headers_view.size()) {
+      break;
+    }
+    headers_view = {headers_view.substr(crlf_pos + 2)};
+    crlf_pos = headers_view.find("\r\n");
   }
 
   std::vector<uint8_t> temp;
