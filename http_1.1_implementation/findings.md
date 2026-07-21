@@ -17,6 +17,67 @@ In `main.cpp`, `server.listen()` is called but `server.run()` is not. The progra
 
 ---
 
+## `http1_parser.cpp` — Parser
+
+### 19. (BUG) `parse_headers` header loop never advances
+After the first header line is parsed, `crlf_pos` is never updated in the `while` loop body (`http1_parser.cpp:191`). On the first iteration a single header is parsed; on subsequent iterations the same line is re-parsed indefinitely. The `continue` on line 208 makes this an infinite loop when a header key already exists.
+
+### 20. `Content-Length: 0` incorrectly rejected for POST/PATCH/PUT
+The check `if (body_len == 0) throw 411` (`http1_parser.cpp:256`) catches `Content-Length: 0`, which is a perfectly valid way to signal an empty request body. The 411 should only fire when *neither* `Content-Length` nor `Transfer-Encoding` is present.
+
+### 21. Body data after `\r\n\r\n` bypasses `body_len` overflow check
+In `read_headers` (`http1_parser.cpp:169-173`), data remaining in the buffer after the header boundary is inserted directly into `conn.req.body` without checking whether it exceeds `body_len`. The overflow check in `read_body` is only reached on the *next* `decode()` call, so the body can over-allocate before the error fires.
+
+### 22. Chunked Transfer-Encoding not decoded
+For `TE: chunked`, `body_len` is set to `MAX_BODY_LEN` and raw bytes are dumped verbatim into `conn.req.body`. Chunk-size hex lines, CRLFs, and trailing headers all become part of the body data. There is no dechunking loop, and `body_len` conflates "expected decoded size" with "max raw-read limit."
+
+### 23. Transfer-Encoding: chunked must be the final coding
+RFC 7230 §3.3.1 requires chunked to be the last transfer coding (e.g. `TE: gzip, chunked` is valid, `TE: chunked, gzip` is not). The code only checks whether `"chunked"` is a substring of the first TE value — it doesn't validate ordering or reject invalid combinations.
+
+---
+
+## `http1_parser.h` — Parser Interface
+
+### 24. `parse_body` declared but never defined
+`static void parse_body(HttpConnection &)` is declared as a private static method (`http1_parser.h:20`) but has no definition. Dead declaration.
+
+---
+
+## `http_connection.h` — Data Structures
+
+### 25. `body_encoding` field never populated
+`HttpRequest::body_encoding` (`http_connection.h:28`) is declared as `std::optional<std::string>` but never set. The comment `// set req.body_encoding here` in the chunked branch (`http1_parser.cpp:226`) is a no-op. Moreover, `body_encoding` should represent *content* encoding (gzip, br), not *transfer* encoding (chunked) — the naming and placement conflate the two concepts.
+
+---
+
+## General — Cross-cutting Concerns
+
+### 26. No Content-Encoding decompression
+gzip, br, deflate, and compress are never decoded. A client sending `Content-Encoding: gzip` with a gzip-compressed body will have raw compressed bytes stored as the body.
+
+### 27. No `Expect: 100-continue` handling
+Per RFC 9110 §10.1.1, a client sending `Expect: 100-continue` expects a `100 Continue` response before sending the body. The server currently reads the body unconditionally, and never sends `100 Continue` or `417 Expectation Failed`.
+
+### 28. All errors thrown as exceptions, never sent as HTTP responses
+Every validation failure (`400`, `411`, `413`, `501`) throws `std::runtime_error`, which propagates up and terminates the connection (or the program). No error ever produces an actual HTTP response to the client.
+
+### 29. `MAX_BODY_LEN` (16 KiB) is arbitrary and hardcoded
+No configurable limit. A legitimate POST with a larger body is rejected at 16 KiB regardless of available resources.
+
+### 30. Request target / URI not validated
+The parsed `req.path` is taken verbatim from the request line with no validation for origin-form, absolute-form, authority-form, or asterisk-form. No path normalization or security sanitization.
+
+### 31. HTTP pipelining not supported
+Multiple requests arriving on a single connection are not handled. The parser stops after the first complete request-response cycle.
+
+### 32. Connection persistence not handled
+No `Connection: keep-alive` vs `close` handling. All connections have the same lifecycle, and there's no logic to reuse a connection for subsequent requests.
+
+### 33. Response generation (`encode`) unimplemented
+`Http1Parser::encode()` is declared (returns `bool`) but has no visible implementation. No HTTP responses are ever constructed or sent.
+
+---
+
 ## `main.cpp` — Entry Point
 
 ### 16. No graceful shutdown handling
@@ -38,5 +99,5 @@ The other projects compile tests with `-fsanitize=address,undefined`. This subpr
 
 | Severity | Count | Key Issues |
 |----------|-------|------------|
-| **Bug** | 1 | #9 (server.run never called) |
-| **Missing** | 2 | #17 (no tests), #18 (no sanitizers) |
+| **Bug** | 4 | #9 (server.run never called), #19 (parse_headers infinite loop), #20 (Content-Length: 0 rejection), #21 (body data bypasses overflow check) |
+| **Missing** | 15 | #16 (no graceful shutdown), #17 (no tests), #18 (no sanitizers), #22 (chunked decoding), #23 (TE validation), #24 (parse_body not defined), #25 (body_encoding dead field), #26 (Content-Encoding), #27 (Expect: 100-continue), #28 (error responses), #29 (MAX_BODY_LEN arbitrary), #30 (URI validation), #31 (pipelining), #32 (connection persistence), #33 (encode unimplemented) |

@@ -223,6 +223,7 @@ void Http1Parser::parse_headers(HttpConnection &conn) {
 
       if (headers["transfer-encoding"][0].find("chunked") !=
           std::string::npos) {
+        // set req.body_encoding here
         body_len = MAX_BODY_LEN;
       } else {
         // To-do: 501 not implemented
@@ -261,5 +262,27 @@ void Http1Parser::parse_headers(HttpConnection &conn) {
       // To-do: 413: Content Too Large
       throw std::runtime_error("413: Content Too Large");
     }
+  }
+}
+
+void Http1Parser::read_body(HttpConnection &conn,
+                            std::span<const uint8_t> buf) {
+  if (buf.empty() || conn.req.stage != RequestParsingStage::body) {
+    return;
+  }
+
+  auto &headers{conn.req.headers};
+  auto &body_buf{conn.req.body};
+  auto body_len{conn.req.body_len};
+
+  if (body_buf.size() + buf.size() > body_len) {
+    // To-do: 413: Content Too Large
+    throw std::runtime_error("413: Content Too Large");
+  }
+
+  body_buf.insert(body_buf.end(), buf.begin(), buf.end());
+
+  if (body_buf.size() >= body_len) {
+    conn.req.stage = RequestParsingStage::end;
   }
 }

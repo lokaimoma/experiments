@@ -3,6 +3,7 @@
 #include "unique_fd.h"
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <sys/socket.h>
 #include <unordered_map>
@@ -24,6 +25,7 @@ struct HttpRequest {
   std::string version{};
   std::unordered_map<std::string, std::vector<std::string>> headers{};
   size_t body_len{0};
+  std::optional<std::string> body_encoding{};
   std::vector<uint8_t> body{};
 };
 
