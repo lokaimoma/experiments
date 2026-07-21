@@ -14,7 +14,6 @@
 ### 9. (BUG) `server.run()` is never called
 In `main.cpp`, `server.listen()` is called but `server.run()` is not. The program prints the listening address and exits immediately. The server never enters the event loop.
 
-### 12. `TCP_NODELAY` set on listening socket instead of accepted connections
 
 ---
 
@@ -40,5 +39,4 @@ The other projects compile tests with `-fsanitize=address,undefined`. This subpr
 | Severity | Count | Key Issues |
 |----------|-------|------------|
 | **Bug** | 1 | #9 (server.run never called) |
-| **Design** | 1 | #12 |
 | **Missing** | 2 | #17 (no tests), #18 (no sanitizers) |

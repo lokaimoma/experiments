@@ -33,12 +33,6 @@ void Server::set_socket_options() {
   if (res == -1) {
     perror("set_socket_options(SOL_SOCKET -> SO_REUSEADDR = 1)");
   }
-
-  int nodelay{1};
-  res = setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, &nodelay, sizeof(nodelay));
-  if (res == -1) {
-    perror("set_socket_options(IPPROTO_TCP -> TCP_NODELAY = 1)");
-  }
 }
 
 void Server::try_bind() {
@@ -145,6 +139,13 @@ auto Server::handle_accept() -> std::optional<ConnfdAddrPair> {
   //   perror("setsockopt(connfd)(SOL_SOCKET -> SO_RCVTIMEO)");
   // }
   fd_set_nonblock(connfd);
+
+  int nodelay{1};
+  int res{
+      setsockopt(connfd, IPPROTO_TCP, TCP_NODELAY, &nodelay, sizeof(nodelay))};
+  if (res == -1) {
+    perror("set_socket_options(IPPROTO_TCP -> TCP_NODELAY = 1)");
+  }
 
   return ConnfdAddrPair{std::move(connfd), connaddr};
 }
