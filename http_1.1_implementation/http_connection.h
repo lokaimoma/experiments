@@ -10,35 +10,39 @@
 #include <vector>
 
 enum class RequestParsingStage {
-  status_line,
-  headers,
-  body,
-  end,
+  REQUEST_LINE,
+  HEADERS,
+  BODY_CHUNKED,
+  BODY_CONTENT,
+  BODY_TRAILER,
+  COMPLETE,
+  ERROR,
 };
 
-struct HttpRequest {
-  RequestParsingStage stage{RequestParsingStage::status_line};
-  std::vector<uint8_t> raw_status_line{};
-  std::vector<uint8_t> raw_headers{};
+struct RequestParserContext {
+  size_t body_content_remaining{0};
+  std::vector<uint8_t> status_line_buf{};
+  std::vector<uint8_t> headers_buf{};
+  std::vector<uint8_t> body_buf{};
   std::string method{};
   std::string path{};
   std::string version{};
   std::unordered_map<std::string, std::vector<std::string>> headers{};
-  size_t body_len{0};
   std::optional<std::string> body_encoding{};
+  RequestParsingStage stage{RequestParsingStage::REQUEST_LINE};
   bool is_body_chunked{false};
-  std::vector<uint8_t> body{};
+  bool reading_chunk_size{false};
 };
 
-struct HttpResponse {
+struct ResponseContext {
   std::vector<uint8_t> raw_status_line{};
   std::vector<uint8_t> raw_headers{};
   std::vector<uint8_t> body{};
 };
 
 struct HttpConnection {
-  HttpRequest req{};
-  HttpResponse response{};
+  RequestParserContext req{};
+  ResponseContext response{};
   struct sockaddr_storage addr;
   UniqueFd fd{};
   bool want_read{false};

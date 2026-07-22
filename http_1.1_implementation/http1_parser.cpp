@@ -67,7 +67,7 @@ void Http1Parser::read_status_line(HttpConnection &conn,
   }
 
   auto lf_pos{std::find(buf.begin(), buf.end(), '\n')};
-  auto &status_line_buf{conn.req.raw_status_line};
+  auto &status_line_buf{conn.req.status_line_buf};
 
   if (lf_pos != buf.end()) {
     conn.req.stage = RequestParsingStage::headers;
@@ -77,7 +77,7 @@ void Http1Parser::read_status_line(HttpConnection &conn,
     parse_status_line(conn);
 
     if (lf_pos + 1 != buf.end()) {
-      conn.req.raw_headers.insert(conn.req.raw_headers.end(), lf_pos + 1,
+      conn.req.headers_buf.insert(conn.req.headers_buf.end(), lf_pos + 1,
                                   buf.end());
     }
     return;
@@ -87,7 +87,7 @@ void Http1Parser::read_status_line(HttpConnection &conn,
 }
 
 void Http1Parser::parse_status_line(HttpConnection &conn) {
-  auto &status_line_buf{conn.req.raw_status_line};
+  auto &status_line_buf{conn.req.status_line_buf};
 
   std::string_view status_line_view{
       reinterpret_cast<char *>(status_line_buf.data()), status_line_buf.size()};
@@ -139,7 +139,7 @@ void Http1Parser::read_headers(HttpConnection &conn,
     return;
   }
 
-  auto &headers_buf{conn.req.raw_headers};
+  auto &headers_buf{conn.req.headers_buf};
 
   if (headers_buf.size() + buf.size() > MAX_HEADER_SIZE) {
     throw std::runtime_error("header too large. To Be Updated to write the "
@@ -160,8 +160,8 @@ void Http1Parser::read_headers(HttpConnection &conn,
 
     parse_headers(conn);
 
-    if (conn.req.body_len == 0) {
-      conn.req.body_len = 0;
+    if (conn.req.body_content_remaining == 0) {
+      conn.req.body_content_remaining = 0;
       conn.req.stage = RequestParsingStage::end;
       return;
     }
@@ -170,10 +170,10 @@ void Http1Parser::read_headers(HttpConnection &conn,
       size_t rem_data{static_cast<size_t>(
           buf.end() - (double_crlf_pos + double_crlf_pattern.size()))};
 
-      if (rem_data <= conn.req.body_len) {
-        conn.req.body.insert(conn.req.body.end(),
-                             double_crlf_pos + double_crlf_pattern.size(),
-                             buf.end());
+      if (rem_data <= conn.req.body_content_remaining) {
+        conn.req.body_buf.insert(conn.req.body_buf.end(),
+                                 double_crlf_pos + double_crlf_pattern.size(),
+                                 buf.end());
       } else {
         // Todo: 422 Unprocessable Entity
         throw std::runtime_error(
@@ -189,7 +189,7 @@ void Http1Parser::read_headers(HttpConnection &conn,
 
 void Http1Parser::parse_headers(HttpConnection &conn) {
   auto &req{conn.req};
-  auto &headers_buf{req.raw_headers};
+  auto &headers_buf{req.headers_buf};
   auto &headers{req.headers};
 
   std::string_view headers_view{reinterpret_cast<char *>(headers_buf.data()),
@@ -233,7 +233,7 @@ void Http1Parser::parse_headers(HttpConnection &conn) {
 
   auto &req_method{req.method};
 
-  size_t &body_len{req.body_len};
+  size_t &body_len{req.body_content_remaining};
 
   if (req_method == "POST" || req_method == "PATCH" || req_method == "PUT") {
     auto required_body_len_headers_found{false};
@@ -300,8 +300,8 @@ void Http1Parser::read_body(HttpConnection &conn,
   }
 
   auto &req{conn.req};
-  auto &body_buf{conn.req.body};
-  auto body_len{conn.req.body_len};
+  auto &body_buf{conn.req.body_buf};
+  auto body_len{conn.req.body_content_remaining};
 
   if (body_buf.size() + buf.size() > body_len) {
     // To-do: 413: Content Too Large
