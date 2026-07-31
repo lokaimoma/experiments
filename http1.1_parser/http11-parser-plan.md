@@ -184,7 +184,7 @@ a known request-smuggling vector.
 
 ## 3. Milestones
 
-### Milestone 0 — Scaffolding
+### Milestone 0 — Scaffolding ✅
 
 - CMake project, C++20, warnings-as-errors (`-Wall -Wextra -Wpedantic` or
   MSVC equivalent).
