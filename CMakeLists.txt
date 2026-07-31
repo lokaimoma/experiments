@@ -5,4 +5,3 @@ enable_testing()
 
 add_subdirectory(pooled_arena_allocator)
 add_subdirectory(hashtable)
-add_subdirectory(http_1.1_implementation)
