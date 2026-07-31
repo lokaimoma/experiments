@@ -3,8 +3,6 @@
 #include "unique_fd.h"
 #include <cstddef>
 #include <cstdint>
-#include <optional>
-#include <string>
 #include <sys/socket.h>
 #include <unordered_map>
 #include <vector>
@@ -19,26 +17,20 @@ enum class RequestParsingStage {
   ERROR,
 };
 
+constexpr int MAX_HEADER_SIZE = 8192;             // 8KiB
+constexpr int MAX_BODY_LEN = MAX_HEADER_SIZE * 2; // 16KiB
+
 struct RequestParserContext {
-  size_t body_content_remaining{0};
-  std::vector<uint8_t> status_line_buf{};
-  std::vector<uint8_t> headers_buf{};
-  std::vector<uint8_t> body_buf{};
-  std::string method{};
-  std::string path{};
-  std::string version{};
-  std::unordered_map<std::string, std::vector<std::string>> headers{};
-  std::optional<std::string> body_encoding{};
+  std::array<uint8_t, MAX_HEADER_SIZE> header_buf{};
+
+  std::string_view method{};
+  std::string_view path{};
+  std::string_view version{};
+
   RequestParsingStage stage{RequestParsingStage::REQUEST_LINE};
-  bool is_body_chunked{false};
-  bool reading_chunk_size{false};
 };
 
-struct ResponseContext {
-  std::vector<uint8_t> raw_status_line{};
-  std::vector<uint8_t> raw_headers{};
-  std::vector<uint8_t> body{};
-};
+struct ResponseContext {};
 
 struct HttpConnection {
   RequestParserContext req{};
