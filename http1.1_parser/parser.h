@@ -15,6 +15,8 @@ struct Limits {
   size_t max_body_bytes{10 * 1024 * 1024};
 };
 
+enum class ParserStage { StartLine, Headers, Body, Trailers, End };
+enum class BodyType { None, Fixed, Chunked };
 enum class ParseStatus { NeedMoreData, Complete, Error };
 enum class ParseError {};
 
@@ -31,10 +33,13 @@ struct HeaderField {
 
 class Http11RequestParser {
 private:
-  Limits limits{};
   RequestLine rl{};
+  Limits limits{};
   std::vector<HeaderField> _headers{};
+  std::vector<uint8_t> buf{};
   std::optional<ParseError> _last_error{};
+  ParserStage stage{ParserStage::StartLine};
+  BodyType body_type{BodyType::None};
 
 public:
   explicit Http11RequestParser(Limits l = Limits{}) : limits{l} {};
