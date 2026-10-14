@@ -19,9 +19,10 @@ enum class ParserStage { StartLine, Headers, Body, Trailers, End };
 enum class BodyType { None, Fixed, Chunked };
 enum class ParseStatus { NeedMoreData, Complete, Error };
 enum class ParseError {
-  RequestMethodNotFound,
-  NoRequestTargetFound,
-  NoHttpVersionFound
+  InvalidRequestMethod,
+  InvalidRequestTarget,
+  InvalidHTTPVersion,
+  InvalidStatusLine,
 };
 
 struct RequestLine {

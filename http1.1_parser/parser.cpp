@@ -40,48 +40,50 @@ ParseStatus Http11RequestParser::feed(const uint8_t *data, size_t len) {
 }
 
 bool Http11RequestParser::parse_status_line() {
-  std::string_view sv{reinterpret_cast<const char *>(buf.data()), buf.size()};
-  size_t idx{sv.find("\r\n")};
+  std::string_view buf_view{reinterpret_cast<const char *>(buf.data()),
+                            buf.size()};
+
+  size_t idx{buf_view.find("\r\n")};
+
   if (idx == std::string_view::npos) {
     return false;
   }
-  sv = {sv.substr(0, idx)};
 
-  auto split_range{sv | std::views::split(' ')};
-  auto it{split_range.begin()};
-  auto end{split_range.end()};
+  buf_view = {buf_view.substr(0, idx)};
 
-  if (it == end) {
-    _last_error = ParseError::RequestMethodNotFound;
+  size_t split_pos{0};
+  for (auto sub_range : buf_view | std::views::split(' ')) {
+    std::string_view stl_comp{sub_range.data(), sub_range.size()};
+
+    switch (split_pos) {
+    case 0:
+      if (!val_status_line_mthd(stl_comp)) {
+        _last_error = ParseError::InvalidRequestMethod;
+        return false;
+      };
+      rl.method = std::string(stl_comp);
+      break;
+    case 1:
+      // validate here
+      rl.request_target = std::string(stl_comp);
+      break;
+    case 2:
+      // validate here
+      rl.http_version = std::string(stl_comp);
+      break;
+    default:
+      _last_error = ParseError::InvalidStatusLine;
+      return false;
+      break;
+    }
+
+    ++split_pos;
+  }
+
+  if (split_pos < 3) {
+    _last_error = ParseError::InvalidStatusLine;
     return false;
   }
-  auto sub_range{*it};
-  std::string_view stl_comp{sub_range.data(), sub_range.size()};
-  if (!val_status_line_mthd(stl_comp)) {
-    _last_error = ParseError::RequestMethodNotFound;
-    return false;
-  };
-  rl.method = std::string(stl_comp);
-
-  ++it;
-  if (it == end) {
-    _last_error = ParseError::NoRequestTargetFound;
-    return false;
-  }
-  sub_range = *it;
-  stl_comp = {sub_range.data(), sub_range.size()};
-  // We check if it's valid origin or absolute request target, etc
-  rl.request_target = std::string(stl_comp);
-
-  ++it;
-  if (it == end) {
-    _last_error = ParseError::NoHttpVersionFound;
-    return false;
-  }
-  sub_range = *it;
-  stl_comp = {sub_range.data(), sub_range.size()};
-  // We check if it's valid http version, etc
-  rl.http_version = std::string(stl_comp);
 
   return true;
 }
