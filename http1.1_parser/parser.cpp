@@ -18,12 +18,16 @@ ParseStatus Http11RequestParser::feed(const uint8_t *data, size_t len) {
   case ParserStage::StartLine:
     res = parse_request_line();
     break;
+
   case ParserStage::Headers:
     break;
+
   case ParserStage::Body:
     break;
+
   case ParserStage::Trailers:
     break;
+
   case ParserStage::End:
     break;
   }
@@ -52,6 +56,7 @@ bool Http11RequestParser::parse_request_line() {
   buf_view = {buf_view.substr(0, idx)};
 
   size_t split_pos{0};
+
   for (auto sub_range : buf_view | std::views::split(' ')) {
     std::string_view req_line_comp{sub_range.data(), sub_range.size()};
 
@@ -124,6 +129,7 @@ bool Http11RequestParser::validate_req_target(std::string_view s) {
     if (s.starts_with("/")) {
       return false;
     }
+
     if (s.find(":") == std::string_view::npos) {
       return false;
     }
