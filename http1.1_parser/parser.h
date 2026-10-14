@@ -46,7 +46,7 @@ private:
   ParserStage stage{ParserStage::StartLine};
   BodyType body_type{BodyType::None};
 
-  bool parse_status_line();
+  bool parse_request_line();
   bool val_status_line_mthd(std::string_view);
 
 public:

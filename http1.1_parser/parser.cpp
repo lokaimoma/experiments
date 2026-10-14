@@ -16,7 +16,7 @@ ParseStatus Http11RequestParser::feed(const uint8_t *data, size_t len) {
 
   switch (stage) {
   case ParserStage::StartLine:
-    res = parse_status_line();
+    res = parse_request_line();
     break;
   case ParserStage::Headers:
     break;
@@ -39,7 +39,7 @@ ParseStatus Http11RequestParser::feed(const uint8_t *data, size_t len) {
   return ParseStatus::NeedMoreData;
 }
 
-bool Http11RequestParser::parse_status_line() {
+bool Http11RequestParser::parse_request_line() {
   std::string_view buf_view{reinterpret_cast<const char *>(buf.data()),
                             buf.size()};
 
