@@ -1,4 +1,5 @@
 #include "parser.h"
+#include "utils.h"
 #include <cstddef>
 #include <ranges>
 #include <string>
@@ -56,7 +57,10 @@ bool Http11RequestParser::parse_status_line() {
   }
   auto sub_range{*it};
   std::string_view stl_comp{sub_range.data(), sub_range.size()};
-  // We check if it's equal to a valid verb here, etc
+  if (!val_status_line_mthd(stl_comp)) {
+    _last_error = ParseError::RequestMethodNotFound;
+    return false;
+  };
   rl.method = std::string(stl_comp);
 
   ++it;
@@ -80,6 +84,17 @@ bool Http11RequestParser::parse_status_line() {
   rl.http_version = std::string(stl_comp);
 
   return true;
+}
+
+bool Http11RequestParser::val_status_line_mthd(std::string_view s) {
+  return case_insensitive_equal(s, "head") ||
+         case_insensitive_equal(s, "get") ||
+         case_insensitive_equal(s, "post") ||
+         case_insensitive_equal(s, "put") ||
+         case_insensitive_equal(s, "delete") ||
+         case_insensitive_equal(s, "options") ||
+         case_insensitive_equal(s, "connect") ||
+         case_insensitive_equal(s, "trace");
 }
 
 const RequestLine &Http11RequestParser::request_line() const { return rl; }

@@ -46,6 +46,7 @@ private:
   BodyType body_type{BodyType::None};
 
   bool parse_status_line();
+  bool val_status_line_mthd(std::string_view);
 
 public:
   explicit Http11RequestParser(Limits l = Limits{}) : limits{l} {};
