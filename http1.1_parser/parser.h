@@ -18,12 +18,16 @@ struct Limits {
 enum class ParserStage { StartLine, Headers, Body, Trailers, End };
 enum class BodyType { None, Fixed, Chunked };
 enum class ParseStatus { NeedMoreData, Complete, Error };
-enum class ParseError {};
+enum class ParseError {
+  RequestMethodNotFound,
+  NoRequestTargetFound,
+  NoHttpVersionFound
+};
 
 struct RequestLine {
   std::string method{};
-  std::string path{};
-  std::string url{};
+  std::string request_target{};
+  std::string http_version{};
 };
 
 struct HeaderField {
@@ -40,6 +44,8 @@ private:
   std::optional<ParseError> _last_error{};
   ParserStage stage{ParserStage::StartLine};
   BodyType body_type{BodyType::None};
+
+  bool parse_status_line();
 
 public:
   explicit Http11RequestParser(Limits l = Limits{}) : limits{l} {};
