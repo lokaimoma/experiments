@@ -60,7 +60,8 @@ bool Http11RequestParser::parse_request_line() {
       if (!validate_req_method(req_line_comp)) {
         _last_error = ParseError::InvalidRequestMethod;
         return false;
-      };
+      }
+
       rl.method = to_lower_case(req_line_comp);
       break;
 
@@ -69,13 +70,19 @@ bool Http11RequestParser::parse_request_line() {
         _last_error = ParseError::InvalidRequestTarget;
         return false;
       }
+
       rl.request_target = std::string(req_line_comp);
       break;
 
     case 2:
-      // validate here
-      rl.http_version = std::string(req_line_comp);
+      if (!case_insensitive_equal(req_line_comp, "HTTP/1.1")) {
+        _last_error = ParseError::InvalidHTTPVersion;
+        return false;
+      }
+
+      rl.http_version = to_upper_case(req_line_comp);
       break;
+
     default:
       _last_error = ParseError::InvalidStatusLine;
       return false;
