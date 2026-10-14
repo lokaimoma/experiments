@@ -47,7 +47,8 @@ private:
   BodyType body_type{BodyType::None};
 
   bool parse_request_line();
-  bool val_status_line_mthd(std::string_view);
+  bool validate_req_method(std::string_view);
+  bool validate_req_target(std::string_view);
 
 public:
   explicit Http11RequestParser(Limits l = Limits{}) : limits{l} {};

@@ -53,23 +53,28 @@ bool Http11RequestParser::parse_request_line() {
 
   size_t split_pos{0};
   for (auto sub_range : buf_view | std::views::split(' ')) {
-    std::string_view stl_comp{sub_range.data(), sub_range.size()};
+    std::string_view req_line_comp{sub_range.data(), sub_range.size()};
 
     switch (split_pos) {
     case 0:
-      if (!val_status_line_mthd(stl_comp)) {
+      if (!validate_req_method(req_line_comp)) {
         _last_error = ParseError::InvalidRequestMethod;
         return false;
       };
-      rl.method = std::string(stl_comp);
+      rl.method = to_lower_case(req_line_comp);
       break;
+
     case 1:
-      // validate here
-      rl.request_target = std::string(stl_comp);
+      if (!validate_req_target(req_line_comp)) {
+        _last_error = ParseError::InvalidRequestTarget;
+        return false;
+      }
+      rl.request_target = std::string(req_line_comp);
       break;
+
     case 2:
       // validate here
-      rl.http_version = std::string(stl_comp);
+      rl.http_version = std::string(req_line_comp);
       break;
     default:
       _last_error = ParseError::InvalidStatusLine;
@@ -88,7 +93,7 @@ bool Http11RequestParser::parse_request_line() {
   return true;
 }
 
-bool Http11RequestParser::val_status_line_mthd(std::string_view s) {
+bool Http11RequestParser::validate_req_method(std::string_view s) {
   return case_insensitive_equal(s, "head") ||
          case_insensitive_equal(s, "get") ||
          case_insensitive_equal(s, "post") ||
@@ -97,6 +102,31 @@ bool Http11RequestParser::val_status_line_mthd(std::string_view s) {
          case_insensitive_equal(s, "options") ||
          case_insensitive_equal(s, "connect") ||
          case_insensitive_equal(s, "trace");
+}
+
+bool Http11RequestParser::validate_req_target(std::string_view s) {
+  if (s.empty()) {
+    return false;
+  }
+
+  if (s == "*" && rl.method != "options") {
+    return false;
+  }
+
+  if (rl.method == "connect") {
+    if (s.starts_with("/")) {
+      return false;
+    }
+    if (s.find(":") == std::string_view::npos) {
+      return false;
+    }
+  }
+
+  if (s.find("://") == std::string_view::npos || s[0] != '/') {
+    return false;
+  }
+
+  return true;
 }
 
 const RequestLine &Http11RequestParser::request_line() const { return rl; }
