@@ -15,7 +15,7 @@ ParseStatus Http11RequestParser::feed(const uint8_t *data, size_t len) {
 
   switch (stage) {
   case ParserStage::StartLine:
-    parse_status_line();
+    res = parse_status_line();
     break;
   case ParserStage::Headers:
     break;
@@ -25,6 +25,14 @@ ParseStatus Http11RequestParser::feed(const uint8_t *data, size_t len) {
     break;
   case ParserStage::End:
     break;
+  }
+
+  if (res) {
+    // transition to next stage or mark as complete
+  }
+
+  if (_last_error) {
+    return ParseStatus::Error;
   }
 
   return ParseStatus::NeedMoreData;
