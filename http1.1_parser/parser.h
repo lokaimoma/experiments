@@ -25,6 +25,8 @@ enum class ParseError {
   InvalidHTTPVersion,
   InvalidStatusLine,
 
+  InvalidHeaders,
+
   UnknownParserStage,
 };
 
@@ -52,6 +54,8 @@ private:
   std::optional<size_t> parse_request_line();
   bool validate_req_method(std::string_view);
   bool validate_req_target(std::string_view);
+
+  std::optional<size_t> parse_headers();
 
 public:
   explicit Http11RequestParser(Limits l = Limits{}) : limits{l} {};

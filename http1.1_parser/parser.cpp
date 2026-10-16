@@ -23,6 +23,7 @@ ParseStatus Http11RequestParser::feed(const uint8_t *data, size_t len) {
       break;
 
     case ParserStage::Headers:
+      section_end = parse_headers();
       break;
 
     case ParserStage::Body:
@@ -176,6 +177,50 @@ bool Http11RequestParser::validate_req_target(std::string_view s) {
   }
 
   return true;
+}
+
+std::optional<size_t> Http11RequestParser::parse_headers() {
+  std::string_view buf_view{reinterpret_cast<const char *>(buf.data()),
+                            buf.size()};
+  std::string_view end_marker{"\r\n"};
+  size_t idx{buf_view.find(end_marker)};
+
+  if (idx == std::string_view::npos) {
+    return std::nullopt;
+  }
+
+  buf_view = buf_view.substr(0, idx);
+
+  if (buf_view.size() > limits.max_header_line_len) {
+    _last_error = ParseError::RequestLineTooLarge;
+    return std::nullopt;
+  }
+
+  std::string_view split_marker{":"};
+  size_t split_point{buf_view.find(split_marker)};
+
+  // CRLF after last header reached
+  if (split_point == std::string_view::npos) {
+    std::string_view crlf{reinterpret_cast<const char *>(buf.data()),
+                          buf.size()};
+    crlf = crlf.substr(idx, idx + end_marker.size());
+
+    if (crlf == end_marker) {
+      return idx + end_marker.size();
+    }
+
+    _last_error = ParseError::InvalidHeaders;
+    return std::nullopt;
+  }
+
+  std::string_view header_name{buf_view.substr(0, split_point)};
+  std::string_view header_value{buf_view.substr(split_point, idx)};
+
+  _headers.emplace_back(std::string(header_name), std::string(header_value));
+
+  buf.erase(buf.begin(), buf.begin() + idx + end_marker.size());
+
+  return std::nullopt;
 }
 
 const RequestLine &Http11RequestParser::request_line() const { return rl; }
