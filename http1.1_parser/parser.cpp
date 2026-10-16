@@ -214,7 +214,7 @@ std::optional<size_t> Http11RequestParser::parse_headers() {
   }
 
   std::string_view header_name{buf_view.substr(0, split_point)};
-  std::string_view header_value{buf_view.substr(split_point, idx)};
+  std::string_view header_value{buf_view.substr(split_point + 1, idx)};
 
   _headers.emplace_back(std::string(header_name), std::string(header_value));
 
