@@ -23,3 +23,21 @@ std::string to_lower_case(std::string_view s) {
                  [](unsigned char c) { return std::tolower(c); });
   return ss;
 }
+
+void trim(std::string &s) {
+  const std::string_view whitespace{" \t\n\r\f\v"};
+
+  size_t end{s.find_last_not_of(whitespace)};
+
+  if (end == std::string::npos) {
+    s.clear();
+    return;
+  }
+
+  s.erase(end + 1);
+
+  size_t start{s.find_first_not_of(whitespace)};
+  if (start != std::string::npos) {
+    s.erase(0, start);
+  }
+}
