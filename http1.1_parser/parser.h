@@ -24,6 +24,8 @@ enum class ParseError {
   InvalidRequestTarget,
   InvalidHTTPVersion,
   InvalidStatusLine,
+
+  UnknownParserStage,
 };
 
 struct RequestLine {
@@ -47,7 +49,7 @@ private:
   ParserStage stage{ParserStage::StartLine};
   BodyType body_type{BodyType::None};
 
-  bool parse_request_line();
+  std::optional<size_t> parse_request_line();
   bool validate_req_method(std::string_view);
   bool validate_req_target(std::string_view);
 
