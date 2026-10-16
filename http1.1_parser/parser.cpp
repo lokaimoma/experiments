@@ -55,6 +55,11 @@ bool Http11RequestParser::parse_request_line() {
 
   buf_view = {buf_view.substr(0, idx)};
 
+  if (buf_view.size() > limits.max_request_line_len) {
+    _last_error = ParseError::RequestLineTooLarge;
+    return false;
+  }
+
   size_t split_pos{0};
 
   for (auto sub_range : buf_view | std::views::split(' ')) {

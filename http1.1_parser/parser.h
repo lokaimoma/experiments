@@ -7,7 +7,7 @@
 #include <vector>
 
 struct Limits {
-  size_t max_start_line_len{8192};
+  size_t max_request_line_len{8192};
   size_t max_header_count{100};
   size_t max_header_line_len{8192};
   size_t max_total_header_bytes{64 * 1024};
@@ -19,6 +19,7 @@ enum class ParserStage { StartLine, Headers, Body, Trailers, End };
 enum class BodyType { None, Fixed, Chunked };
 enum class ParseStatus { NeedMoreData, Complete, Error };
 enum class ParseError {
+  RequestLineTooLarge,
   InvalidRequestMethod,
   InvalidRequestTarget,
   InvalidHTTPVersion,
