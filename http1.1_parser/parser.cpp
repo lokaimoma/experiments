@@ -201,11 +201,11 @@ std::optional<size_t> Http11RequestParser::parse_headers() {
 
   // CRLF after last header reached
   if (split_point == std::string_view::npos) {
-    std::string_view crlf{reinterpret_cast<const char *>(buf.data()),
-                          buf.size()};
-    crlf = crlf.substr(idx, idx + end_marker.size());
+    std::string_view probable_crlf{reinterpret_cast<const char *>(buf.data()),
+                                   buf.size()};
+    probable_crlf = probable_crlf.substr(idx, idx + end_marker.size());
 
-    if (crlf == end_marker) {
+    if (probable_crlf == end_marker) {
       return idx + end_marker.size();
     }
 
