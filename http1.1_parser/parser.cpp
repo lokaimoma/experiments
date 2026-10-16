@@ -78,8 +78,8 @@ std::optional<size_t> Http11RequestParser::parse_request_line() {
   std::string_view buf_view{reinterpret_cast<const char *>(buf.data()),
                             buf.size()};
 
-  std::string_view end_marker{"\r\n"};
-  size_t idx{buf_view.find(end_marker)};
+  constexpr std::string_view end_marker{"\r\n"};
+  const size_t idx{buf_view.find(end_marker)};
 
   if (idx == std::string_view::npos) {
     return std::nullopt;
@@ -182,8 +182,8 @@ bool Http11RequestParser::validate_req_target(std::string_view s) {
 std::optional<size_t> Http11RequestParser::parse_headers() {
   std::string_view buf_view{reinterpret_cast<const char *>(buf.data()),
                             buf.size()};
-  std::string_view end_marker{"\r\n"};
-  size_t idx{buf_view.find(end_marker)};
+  constexpr std::string_view end_marker{"\r\n"};
+  const size_t idx{buf_view.find(end_marker)};
 
   if (idx == std::string_view::npos) {
     return std::nullopt;
@@ -196,8 +196,8 @@ std::optional<size_t> Http11RequestParser::parse_headers() {
     return std::nullopt;
   }
 
-  std::string_view split_marker{":"};
-  size_t split_point{buf_view.find(split_marker)};
+  constexpr std::string_view split_marker{":"};
+  const size_t split_point{buf_view.find(split_marker)};
 
   // CRLF after last header reached
   if (split_point == std::string_view::npos) {
@@ -213,7 +213,7 @@ std::optional<size_t> Http11RequestParser::parse_headers() {
     return std::nullopt;
   }
 
-  std::string_view header_name{buf_view.substr(0, split_point)};
+  const std::string_view header_name{buf_view.substr(0, split_point)};
   std::string header_value{buf_view.substr(split_point + 1, idx)};
   trim(header_value);
 
