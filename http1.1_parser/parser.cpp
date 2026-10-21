@@ -282,6 +282,10 @@ bool Http11RequestParser::verify_has_body() {
   return false;
 }
 
+void Http11RequestParser::reset() {
+  // no-op for now
+}
+
 std::optional<ParseError> Http11RequestParser::last_error() const {
   return _last_error;
 }
