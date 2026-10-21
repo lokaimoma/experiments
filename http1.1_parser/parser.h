@@ -50,12 +50,17 @@ private:
   std::optional<ParseError> _last_error{};
   ParserStage stage{ParserStage::StartLine};
   BodyType body_type{BodyType::None};
+  std::optional<size_t> body_size{};
+  std::optional<std::vector<uint8_t>> body_content{};
 
   std::optional<size_t> parse_request_line();
   bool validate_req_method(std::string_view);
   bool validate_req_target(std::string_view);
 
   std::optional<size_t> parse_headers();
+
+  bool verify_has_body();
+  std::optional<size_t> parse_body();
 
 public:
   explicit Http11RequestParser(Limits l = Limits{}) : limits{l} {};

@@ -1,11 +1,14 @@
 #include "parser.h"
 #include "utils.h"
 #include <algorithm>
+#include <charconv>
 #include <cstddef>
 #include <optional>
 #include <ranges>
 #include <string>
 #include <string_view>
+#include <system_error>
+#include <vector>
 
 ParseStatus Http11RequestParser::feed(const uint8_t *data, size_t len) {
   if (_last_error) {
@@ -27,6 +30,7 @@ ParseStatus Http11RequestParser::feed(const uint8_t *data, size_t len) {
       break;
 
     case ParserStage::Body:
+      section_end = parse_body();
       break;
 
     case ParserStage::Trailers:
@@ -54,8 +58,10 @@ ParseStatus Http11RequestParser::feed(const uint8_t *data, size_t len) {
       stage = ParserStage::Body;
       break;
     case ParserStage::Body:
-      stage = ParserStage::Trailers;
-      break;
+      if (verify_has_body()) {
+        stage = ParserStage::Trailers;
+        break;
+      }
     case ParserStage::Trailers:
       stage = ParserStage::End;
       break;
@@ -228,6 +234,52 @@ const RequestLine &Http11RequestParser::request_line() const { return rl; }
 
 const std::vector<HeaderField> &Http11RequestParser::headers() const {
   return _headers;
+}
+
+std::optional<size_t> Http11RequestParser::parse_body() { return std::nullopt; }
+
+bool Http11RequestParser::verify_has_body() {
+  // have we already checked?
+  if (body_type != BodyType::None && body_size.has_value()) {
+    return true;
+  }
+
+  if (!case_insensitive_equal(rl.method, "post") ||
+      !case_insensitive_equal(rl.method, "put") ||
+      !case_insensitive_equal(rl.method, "patch")) {
+    return false;
+  }
+
+  auto it{std::find_if(_headers.begin(), _headers.end(), [](HeaderField hf) {
+    return case_insensitive_equal(hf.key, "transfer-encoding");
+  })};
+
+  if (it != _headers.end()) {
+    body_type = BodyType::Chunked;
+    body_content = std::vector<uint8_t>();
+    return true;
+  }
+
+  it = std::find_if(_headers.begin(), _headers.end(), [](HeaderField hf) {
+    return case_insensitive_equal(hf.key, "content-length");
+  });
+
+  if (it != _headers.end()) {
+    body_type = BodyType::Fixed;
+    size_t v{};
+    auto [ptr, ec]{std::from_chars(it->value.data(),
+                                   it->value.data() + it->value.size(), v)};
+    if (ec != std::errc()) {
+      // print error or something
+      return false;
+    }
+
+    body_size = static_cast<size_t>(v);
+    body_content = std::vector<uint8_t>(body_size.value());
+    return true;
+  }
+
+  return false;
 }
 
 std::optional<ParseError> Http11RequestParser::last_error() const {
