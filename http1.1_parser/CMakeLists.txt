@@ -14,7 +14,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(doctest)
 
-add_library(http1_1parser_lib parser.cpp)
+add_library(http1_1parser_lib parser.cpp utils.cpp)
 target_compile_options(http1_1parser_lib PRIVATE -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined)
 target_link_options(http1_1parser_lib PRIVATE -fsanitize=address,undefined)
 target_include_directories(http1_1parser_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
