@@ -36,6 +36,6 @@ access stream navigation.
 
 # Implementation Milestones
 
-- [ ] Phase 1: Header Validation — Open file in binary mode, read and verify the PAK1 magic bytes, and extract the file_count.
-- [ ] Phase 2: TOC Iteration — Loop through the archive index to parse every file's name, offset, and size into a structured vector.
+- [x] Phase 1: Header Validation — Open file in binary mode, read and verify the PAK1 magic bytes, and extract the file_count.
+- [x] Phase 2: TOC Iteration — Loop through the archive index to parse every file's name, offset, and size into a structured vector.
 - [ ] Phase 3: Blob Extraction — Use seekg to jump to a specific file's offset and dump its raw contents to disk or memory.
