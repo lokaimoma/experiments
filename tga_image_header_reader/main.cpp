@@ -6,6 +6,7 @@ void read_header(std::string_view file_name) {
   std::ifstream file{file_name.data(), std::ios::binary};
   Header h{};
   parse_header(h, file);
+  file.close();
 
   std::cout << "\n------TGA HEADER INFO------\n";
   std::cout << "Image Type   : " << static_cast<int>(h.image_type) << "\n";
