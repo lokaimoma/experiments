@@ -19,6 +19,11 @@ target_compile_options(tga_image_header_reader_lib PRIVATE -Wall -Wextra -Wpedan
 target_link_options(tga_image_header_reader_lib PRIVATE -fsanitize=address,undefined)
 target_include_directories(tga_image_header_reader_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
+add_executable(TgaIHR_manual_test main.cpp)
+target_link_libraries(TgaIHR_manual_test PRIVATE tga_image_header_reader_lib)
+target_compile_options(TgaIHR_manual_test PRIVATE -Wall -Wextra -Wpedantic -Werror)
+target_link_options(TgaIHR_manual_test PRIVATE -fsanitize=address,undefined)
+
 add_executable(TestTGAReader ./tests/test_reader.cpp) 
 target_link_libraries(TestTGAReader PRIVATE tga_image_header_reader_lib doctest::doctest)
 target_compile_options(TestTGAReader PRIVATE -Wall -Wextra -Wpedantic -Werror)

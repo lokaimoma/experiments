@@ -53,5 +53,3 @@ T fread_16(std::ifstream &file) {
 using ErrorMsg = std::string;
 
 std::optional<ErrorMsg> parse_header(Header &, std::ifstream &file);
-
-void read_header(std::string_view file_name);
