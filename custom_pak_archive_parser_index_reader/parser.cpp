@@ -2,8 +2,8 @@
 #include <optional>
 #include <utility>
 
-std::optional<ErrorMsg> parse_pak_file(PakFileMetaData &pak,
-                                       std::ifstream &file) {
+std::optional<ErrorMsg> parse_pak_file_metadata(PakFileMetaData &pak,
+                                                std::ifstream &file) {
   if (!file.is_open()) {
     return "File not open";
   }

@@ -21,10 +21,9 @@ struct TOCEntry { // Entry in Table of Content
   std::string filename{};
 };
 
-struct PakFile {
+struct PakFileMetaData {
   PakHeader header{};
   std::vector<TOCEntry> toc{};
-  std::vector<uint8_t> data{};
 
   bool is_valid() {
     return std::equal(header.magic.begin(), header.magic.end(),
@@ -34,7 +33,7 @@ struct PakFile {
 
 using ErrorMsg = std::string; // better to use an enum
 
-std::optional<ErrorMsg> parse_pak_file(PakFile &, std::ifstream &);
-std::optional<ErrorMsg> parse_toc_entry(PakFile &, std::ifstream &);
+std::optional<ErrorMsg> parse_pak_file_metadata(PakFileMetaData &,
+                                                std::ifstream &);
 
 std::optional<uint32_t> fread_uint32(std::ifstream &file);
