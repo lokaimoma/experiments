@@ -32,3 +32,9 @@ struct PakFile {
   }
 };
 
+using ErrorMsg = std::string; // better to use an enum
+
+std::optional<ErrorMsg> parse_pak_file(PakFile &, std::ifstream &);
+std::optional<ErrorMsg> parse_toc_entry(PakFile &, std::ifstream &);
+
+std::optional<uint32_t> fread_uint32(std::ifstream &file);
