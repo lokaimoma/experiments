@@ -30,7 +30,7 @@ access stream navigation.
 
 - Container Indexing: Reading a dynamic number of records indicated by a header variable rather than relying on a fixed-size header.
 - Random File Access: Moving the file stream pointer dynamically between the Table of Contents index and distant data offsets.
-- Stream Deserialization: Reusing custom little-endian helper functions (e.g: read_uint32) to safely parse multi-byte integers across multi-platform systems.
+- Stream Deserialization: Reusing custom little-endian helper functions (e.g: read_uint32) to safely parse multibyte integers across multi-platform systems.
 - Struct Packing & Alignment: Designing clean metadata structures to represent archive entries in memory.
 
 # Implementation Milestones
