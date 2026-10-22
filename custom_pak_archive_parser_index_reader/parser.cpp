@@ -2,7 +2,8 @@
 #include <optional>
 #include <utility>
 
-std::optional<ErrorMsg> parse_pak_file(PakFile &pak, std::ifstream &file) {
+std::optional<ErrorMsg> parse_pak_file(PakFileMetaData &pak,
+                                       std::ifstream &file) {
   if (!file.is_open()) {
     return "File not open";
   }
@@ -21,8 +22,6 @@ std::optional<ErrorMsg> parse_pak_file(PakFile &pak, std::ifstream &file) {
     return "Error reading file"; // Logging or returning actual error here
   }
   pak.header.file_count = opt_fc.value();
-
-  long data_size{0};
 
   for (size_t i{0}; i < pak.header.file_count; ++i) {
     int8_t fn_len = file.get();
@@ -47,14 +46,8 @@ std::optional<ErrorMsg> parse_pak_file(PakFile &pak, std::ifstream &file) {
       return "Error reading file"; // Logging or returning actual error here
     }
     toc_entry.size = opt_fc.value();
-    data_size += toc_entry.size;
 
     pak.toc.push_back(std::move(toc_entry));
-  }
-
-  pak.data.resize(data_size);
-  if (!file.read(reinterpret_cast<char *>(pak.data.data()), data_size)) {
-    return "Error reading file"; // Logging or returning actual error here
   }
 
   return std::nullopt;
