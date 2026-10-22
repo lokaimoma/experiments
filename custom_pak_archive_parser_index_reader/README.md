@@ -18,7 +18,8 @@ access stream navigation.
 
 ## Table of Contents (Repeated `file_Count` Times)
 
-- Filename (32 bytes): Fixed-size character array storing the name/path of the archived file.
+- Filename Length (a byte): Size of the filename
+- Filename (variable bytes): Variable-size character array storing the name/path of the archived file.
 - File Offset (4 bytes, Little-Endian): The absolute byte offset from the start of the file where the data blob begins.
 - File Size (4 bytes, Little-Endian): The exact length of the file data blob in bytes.
 
