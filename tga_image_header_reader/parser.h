@@ -5,7 +5,6 @@
 #include <fstream>
 #include <optional>
 #include <string>
-#include <string_view>
 
 /**
   Actual byte order in file
@@ -42,7 +41,6 @@ template <typename T>
   requires std::same_as<T, uint16_t> || std::same_as<T, int16_t>
 T fread_16(std::ifstream &file) {
   uint8_t bytes[2];
-
   file.read(reinterpret_cast<char *>(&bytes), 2);
 
   uint16_t raw{static_cast<uint16_t>(bytes[0] | (bytes[1] << 8))};
