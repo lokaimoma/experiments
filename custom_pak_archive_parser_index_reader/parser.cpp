@@ -2,9 +2,13 @@
 #include <array>
 #include <cstddef>
 #include <ios>
+#include <iostream>
 #include <optional>
 #include <string>
 #include <utility>
+#include <vector>
+#include <zconf.h>
+#include <zlib.h>
 
 std::optional<ErrorMsg> PakFileMetaData::get_file_content(std::ifstream &file,
                                                           std::ofstream &out,
@@ -27,20 +31,38 @@ std::optional<ErrorMsg> PakFileMetaData::get_file_content(std::ifstream &file,
         return ErrorMsg::FILE_TOO_SMALL_FOR_REQUESTED_FILE_POSITION;
     }
 
-    constexpr size_t BUFFER_SIZE{4096};
-    std::array<char, BUFFER_SIZE> buf{};
-    size_t count{t_entry.size};
+    std::vector<char> compressed_buf(t_entry.stored_size);
+    if (!file.read(compressed_buf.data(), t_entry.stored_size)) {
+        return stream_error_to_errormsg(file);
+    }
+    std::vector<char> uncompressed_buf{};
 
-    while (count > 0) {
-        size_t to_read{std::min(BUFFER_SIZE, count)};
-        if (!file.read(buf.data(), to_read)) {
-            return stream_error_to_errormsg(file);
+    switch (t_entry.method) {
+    case StorageMethod::STORED:
+        uncompressed_buf = std::move(compressed_buf);
+        break;
+    case StorageMethod::ZLIB: {
+        uncompressed_buf.resize(t_entry.original_size);
+        uLongf dest_len{t_entry.original_size};
+
+        int result{
+            uncompress(reinterpret_cast<Bytef *>(uncompressed_buf.data()),
+                       &dest_len,
+                       reinterpret_cast<Bytef *>(compressed_buf.data()),
+                       t_entry.stored_size)};
+
+        if (result != Z_OK) {
+            std::cerr << zError(result) << '\n';
+            return ErrorMsg::Z_LIB_DECOMPRESSION_ERROR;
         }
-        std::streamsize read{file.gcount()};
-        if (!out.write(buf.data(), read)) {
-            return stream_error_to_errormsg(out);
-        }
-        count -= read;
+        break;
+    }
+    default:
+        return ErrorMsg::UNKNOWN_STORAGE_METHOD;
+    }
+
+    if (!out.write(uncompressed_buf.data(), uncompressed_buf.size())) {
+        return stream_error_to_errormsg(out);
     }
 
     return std::nullopt;
@@ -90,13 +112,31 @@ std::optional<ErrorMsg> parse_pak_file_metadata(PakFileMetaData &pak,
         if (!opt_fc) {
             return stream_error_to_errormsg(file);
         }
-        toc_entry.compressed_size = opt_fc.value();
+        toc_entry.stored_size = opt_fc.value();
 
         opt_fc = fread_uint32(file);
         if (!opt_fc) {
             return stream_error_to_errormsg(file);
         }
-        toc_entry.uncompressed_size = opt_fc.value();
+        toc_entry.original_size = opt_fc.value();
+
+        const int storage_method = file.get();
+        if (storage_method == EOF) {
+            return stream_error_to_errormsg(file);
+        }
+
+        switch (static_cast<StorageMethod>(storage_method)) {
+        case StorageMethod::STORED:
+            toc_entry.method = StorageMethod::STORED;
+            break;
+        case StorageMethod::ZLIB:
+            toc_entry.method = StorageMethod::ZLIB;
+            break;
+        default:
+            std::cerr << "Uknown storage method: "
+                      << std::to_string(storage_method) << '\n';
+            return ErrorMsg::UNKNOWN_STORAGE_METHOD;
+        }
 
         pak.toc.push_back(std::move(toc_entry));
     }
