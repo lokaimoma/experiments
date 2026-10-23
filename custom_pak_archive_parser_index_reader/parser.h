@@ -10,29 +10,43 @@
 #include <vector>
 
 constexpr std::array<uint8_t, 4> PAK_MAGIC_SIGNATURE{0x50, 0x41, 0x4B, 0x31};
-using ErrorMsg = std::string; // better to use an enum
+
+enum class ErrorMsg {
+    INDEX_OUT_OF_RANGE,
+    INPUT_FILE_NOT_OPEN,
+    OUTPUT_FILE_NOT_OPEN,
+    FILE_TOO_SMALL_FOR_REQUESTED_FILE_POSITION,
+    EOF_REACHED,
+    INCOMPLETE_DATA_EOF_REACHED,
+    STREAM_LOGICAL_ERROR,
+    STREAM_FATAL_ERROR,
+    STREAM_UNKNOWN_ERROR,
+    INVALID_PAK_FILE,
+};
 
 struct PakHeader {
-  std::array<uint8_t, 4> magic{};
-  uint32_t file_count{};
+    std::array<uint8_t, 4> magic{};
+    uint32_t file_count{};
 };
 
 struct TOCEntry { // Entry in Table of Content
-  uint32_t offset{};
-  uint32_t size{};
-  std::string filename{};
+    uint32_t offset{};
+    uint32_t size{};
+    std::string filename{};
 };
 
 struct PakFileMetaData {
-  PakHeader header{};
-  std::vector<TOCEntry> toc{};
+    PakHeader header{};
+    std::vector<TOCEntry> toc{};
 
-  bool is_valid() {
-    return std::equal(header.magic.begin(), header.magic.end(),
-                      PAK_MAGIC_SIGNATURE.begin(), PAK_MAGIC_SIGNATURE.end());
-  }
-  std::optional<ErrorMsg> get_file_content(std::ifstream &file,
-                                           std::ofstream &out, size_t index);
+    bool is_valid() {
+        return std::equal(header.magic.begin(),
+                          header.magic.end(),
+                          PAK_MAGIC_SIGNATURE.begin(),
+                          PAK_MAGIC_SIGNATURE.end());
+    }
+    std::optional<ErrorMsg>
+    get_file_content(std::ifstream &file, std::ofstream &out, size_t index);
 };
 
 std::optional<ErrorMsg> parse_pak_file_metadata(PakFileMetaData &,
