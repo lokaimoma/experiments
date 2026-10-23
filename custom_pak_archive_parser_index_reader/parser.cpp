@@ -90,7 +90,13 @@ std::optional<ErrorMsg> parse_pak_file_metadata(PakFileMetaData &pak,
         if (!opt_fc) {
             return stream_error_to_errormsg(file);
         }
-        toc_entry.size = opt_fc.value();
+        toc_entry.compressed_size = opt_fc.value();
+
+        opt_fc = fread_uint32(file);
+        if (!opt_fc) {
+            return stream_error_to_errormsg(file);
+        }
+        toc_entry.uncompressed_size = opt_fc.value();
 
         pak.toc.push_back(std::move(toc_entry));
     }
