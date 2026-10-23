@@ -25,3 +25,10 @@ add_executable(cpkg_reader_mtester main.cpp)
 target_link_libraries(cpkg_reader_mtester PRIVATE libcpkg_reader)
 target_compile_options(cpkg_reader_mtester PRIVATE -Wall -Wextra -Wpedantic -Werror)
 target_link_options(cpkg_reader_mtester PRIVATE -fsanitize=address,undefined)
+
+add_executable(TestPAKReader ./test/test_pak.cpp)
+target_link_libraries(TestPAKReader PRIVATE libcpkg_reader doctest::doctest)
+target_compile_options(TestPAKReader PRIVATE -Wall -Wextra -Wpedantic -Werror)
+target_link_options(TestPAKReader PRIVATE -fsanitize=address,undefined)
+
+add_test(NAME TestPAKReaderUnitTests COMMAND TestPAKReader)
