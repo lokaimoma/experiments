@@ -38,4 +38,17 @@ access stream navigation.
 
 - [x] Phase 1: Header Validation — Open file in binary mode, read and verify the PAK1 magic bytes, and extract the file_count.
 - [x] Phase 2: TOC Iteration — Loop through the archive index to parse every file's name, offset, and size into a structured vector.
-- [ ] Phase 3: Blob Extraction — Use seekg to jump to a specific file's offset and dump its raw contents to disk or memory.
+- [x] Phase 3: Blob Extraction — Use seekg to jump to a specific file's offset and dump its raw contents to disk or memory.
+
+## Testing
+
+Put some sample files in `scripts/test_files/`, then generate an archive and test it:
+
+```sh
+cd scripts
+python3 pak_generator.py
+cd ..
+./build/cpkg_reader_mtester scripts/test.pak list
+```
+
+Use `info` instead of `list` for archive details, or `extract <index> [output-path]` to extract a file.
