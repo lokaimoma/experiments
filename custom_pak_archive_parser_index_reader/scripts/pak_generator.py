@@ -17,28 +17,29 @@ def create_compressed_pak(input_dir, output_path):
         with open(filepath, "rb") as sf:
             raw_data = sf.read()
             
-        uncompressed_size = len(raw_data)
-        compressed_data = zlib.compress(raw_data, level=9)
-        compressed_size = len(compressed_data)
+        original_size = len(raw_data)
+        stored_data = zlib.compress(raw_data, level=9)
+        stored_size = len(stored_data)
         
         name_bytes = filename.encode('utf-8')
         
         file_entries.append({
             "name": name_bytes,
-            "compressed_size": compressed_size,
-            "uncompressed_size": uncompressed_size,
-            "data": compressed_data
+            "stored_size": stored_size,
+            "original_size": original_size,
+            "method": 1,  # 0 = stored, 1 = zlib
+            "data": stored_data
         })
         
-        # 1 byte (length) + filename len + 4 (offset) + 4 (comp_size) + 4 (uncomp_size)
-        toc_size += 1 + len(name_bytes) + 4 + 4 + 4
+        # 1 byte (length) + filename len + 4 (offset) + 4 (stored) + 4 (original) + 1 (method)
+        toc_size += 1 + len(name_bytes) + 4 + 4 + 4 + 1
 
     # header (8 bytes) + toc_size
     data_offset = 8 + toc_size
 
     for entry in file_entries:
         entry["offset"] = data_offset
-        data_offset += entry["compressed_size"]
+        data_offset += entry["stored_size"]
 
     with open(output_path, "wb") as f:
         f.write(b"PAK1")
@@ -49,8 +50,9 @@ def create_compressed_pak(input_dir, output_path):
             f.write(struct.pack("B", len(name_bytes)))
             f.write(name_bytes)
             f.write(struct.pack("<I", entry["offset"]))
-            f.write(struct.pack("<I", entry["compressed_size"]))
-            f.write(struct.pack("<I", entry["uncompressed_size"]))
+            f.write(struct.pack("<I", entry["stored_size"]))
+            f.write(struct.pack("<I", entry["original_size"]))
+            f.write(struct.pack("B", entry["method"]))
 
         for entry in file_entries:
             f.write(entry["data"])

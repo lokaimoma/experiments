@@ -22,6 +22,13 @@ enum class ErrorMsg {
     STREAM_FATAL_ERROR,
     STREAM_UNKNOWN_ERROR,
     INVALID_PAK_FILE,
+    Z_LIB_DECOMPRESSION_ERROR,
+    UNKNOWN_STORAGE_METHOD,
+};
+
+enum class StorageMethod : uint8_t {
+    STORED = 0,
+    ZLIB = 1,
 };
 
 struct PakHeader {
@@ -31,9 +38,10 @@ struct PakHeader {
 
 struct TOCEntry { // Entry in Table of Content
     uint32_t offset{};
-    uint32_t compressed_size{};
-    uint32_t uncompressed_size{};
+    uint32_t stored_size{};
+    uint32_t original_size{};
     std::string filename{};
+    StorageMethod method{};
 };
 
 struct PakFileMetaData {

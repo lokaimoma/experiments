@@ -19,7 +19,7 @@ FetchContent_MakeAvailable(doctest)
 find_package(ZLIB REQUIRED)
 
 add_library(libcpkg_reader parser.cpp)
-target_link_libraries(libcpkg_reader PRIVATE ZLIB:ZLIB)
+target_link_libraries(libcpkg_reader PUBLIC ZLIB::ZLIB)
 target_compile_options(libcpkg_reader PRIVATE -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined)
 target_link_options(libcpkg_reader PRIVATE -fsanitize=address,undefined)
 target_include_directories(libcpkg_reader PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
