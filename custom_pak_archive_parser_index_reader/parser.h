@@ -39,14 +39,15 @@ struct PakFileMetaData {
     PakHeader header{};
     std::vector<TOCEntry> toc{};
 
-    bool is_valid() {
+    bool is_valid() const {
         return std::equal(header.magic.begin(),
                           header.magic.end(),
                           PAK_MAGIC_SIGNATURE.begin(),
                           PAK_MAGIC_SIGNATURE.end());
     }
-    std::optional<ErrorMsg>
-    get_file_content(std::ifstream &file, std::ofstream &out, size_t index);
+    std::optional<ErrorMsg> get_file_content(std::ifstream &file,
+                                             std::ofstream &out,
+                                             size_t index) const;
 };
 
 std::optional<ErrorMsg> parse_pak_file_metadata(PakFileMetaData &,

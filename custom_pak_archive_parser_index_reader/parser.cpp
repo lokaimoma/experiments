@@ -8,7 +8,7 @@
 
 std::optional<ErrorMsg> PakFileMetaData::get_file_content(std::ifstream &file,
                                                           std::ofstream &out,
-                                                          size_t index) {
+                                                          size_t index) const {
     if (index > toc.size()) {
         return ErrorMsg::INDEX_OUT_OF_RANGE;
     }
@@ -21,7 +21,7 @@ std::optional<ErrorMsg> PakFileMetaData::get_file_content(std::ifstream &file,
         return ErrorMsg::OUTPUT_FILE_NOT_OPEN;
     }
 
-    TOCEntry &t_entry{toc[index]};
+    const TOCEntry &t_entry{toc[index]};
 
     if (!file.seekg(t_entry.offset, std::ios::beg)) {
         return ErrorMsg::FILE_TOO_SMALL_FOR_REQUESTED_FILE_POSITION;
