@@ -9,7 +9,7 @@
 std::optional<ErrorMsg> PakFileMetaData::get_file_content(std::ifstream &file,
                                                           std::ofstream &out,
                                                           size_t index) const {
-    if (index > toc.size()) {
+    if (index >= toc.size()) {
         return ErrorMsg::INDEX_OUT_OF_RANGE;
     }
 
@@ -37,7 +37,9 @@ std::optional<ErrorMsg> PakFileMetaData::get_file_content(std::ifstream &file,
             return stream_error_to_errormsg(file);
         }
         std::streamsize read{file.gcount()};
-        out.write(buf.data(), read);
+        if (!out.write(buf.data(), read)) {
+            return stream_error_to_errormsg(out);
+        }
         count -= read;
     }
 
@@ -50,8 +52,8 @@ std::optional<ErrorMsg> parse_pak_file_metadata(PakFileMetaData &pak,
         return ErrorMsg::INPUT_FILE_NOT_OPEN;
     }
 
-    if (file.read(reinterpret_cast<char *>(pak.header.magic.data()),
-                  pak.header.magic.size())) {
+    if (!file.read(reinterpret_cast<char *>(pak.header.magic.data()),
+                   pak.header.magic.size())) {
         return stream_error_to_errormsg(file);
     }
 
@@ -64,15 +66,16 @@ std::optional<ErrorMsg> parse_pak_file_metadata(PakFileMetaData &pak,
         return stream_error_to_errormsg(file);
     }
     pak.header.file_count = opt_fc.value();
+    pak.toc.clear();
 
     for (size_t i{0}; i < pak.header.file_count; ++i) {
-        int8_t fn_len = file.get();
-        if (fn_len == -1) {
+        const int fn_len = file.get();
+        if (fn_len == EOF) {
             return stream_error_to_errormsg(file);
         }
 
         TOCEntry toc_entry{};
-        toc_entry.filename.resize((fn_len));
+        toc_entry.filename.resize(fn_len);
         if (!file.read(toc_entry.filename.data(), fn_len)) {
             return stream_error_to_errormsg(file);
         }
