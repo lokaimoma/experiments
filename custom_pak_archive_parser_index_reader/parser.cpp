@@ -1,6 +1,49 @@
 #include "parser.h"
+#include <array>
+#include <cstddef>
+#include <ios>
 #include <optional>
+#include <string>
 #include <utility>
+
+std::optional<ErrorMsg> PakFileMetaData::get_file_content(std::ifstream &file,
+                                                          std::ofstream &out,
+                                                          size_t index) {
+  if (index > toc.size()) {
+    return "Index out of range";
+  }
+
+  if (!file.is_open()) {
+    return "Input file not open";
+  }
+
+  if (!out.is_open()) {
+    return "Output file not open";
+  }
+
+  TOCEntry &t_entry{toc[index]};
+
+  if (!file.seekg(t_entry.offset, std::ios::beg)) {
+    return "Seek failed: file may be smaller than" +
+           std::to_string(t_entry.offset) + " bytes";
+  }
+
+  constexpr size_t BUFFER_SIZE{4096};
+  std::array<char, BUFFER_SIZE> buf{};
+  size_t count{t_entry.size};
+
+  while (count > 0) {
+    size_t to_read{std::min(BUFFER_SIZE, count)};
+    if (!file.read(buf.data(), to_read)) {
+      return stream_error_to_errormsg(file);
+    }
+    std::streamsize read{file.gcount()};
+    out.write(buf.data(), read);
+    count -= read;
+  }
+
+  return std::nullopt;
+}
 
 std::optional<ErrorMsg> parse_pak_file_metadata(PakFileMetaData &pak,
                                                 std::ifstream &file) {
@@ -64,4 +107,19 @@ std::optional<uint32_t> fread_uint32(std::ifstream &file) {
          static_cast<uint32_t>(bytes[1] << 8) |
          static_cast<uint32_t>(bytes[2] << 16) |
          static_cast<uint32_t>(bytes[3] << 24);
+}
+
+ErrorMsg stream_error_to_errormsg(std::ios &s) {
+  switch (s.rdstate()) {
+  case std::ios_base::eofbit:
+    return "End of file reached";
+  case (std::ios_base::eofbit | std::ios_base::failbit):
+    return "Incomplete data. End of file reaced";
+  case std::ios_base::failbit:
+    return "Logical error";
+  case std::ios_base::badbit:
+    return "Fatal stream error";
+  default:
+    return "unknown stream error state";
+  }
 }

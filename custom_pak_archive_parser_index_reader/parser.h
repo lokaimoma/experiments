@@ -4,11 +4,13 @@
 #include <array>
 #include <cstdint>
 #include <fstream>
+#include <ios>
 #include <optional>
 #include <string>
 #include <vector>
 
 constexpr std::array<uint8_t, 4> PAK_MAGIC_SIGNATURE{0x50, 0x41, 0x4B, 0x31};
+using ErrorMsg = std::string; // better to use an enum
 
 struct PakHeader {
   std::array<uint8_t, 4> magic{};
@@ -29,11 +31,13 @@ struct PakFileMetaData {
     return std::equal(header.magic.begin(), header.magic.end(),
                       PAK_MAGIC_SIGNATURE.begin(), PAK_MAGIC_SIGNATURE.end());
   }
+  std::optional<ErrorMsg> get_file_content(std::ifstream &file,
+                                           std::ofstream &out, size_t index);
 };
-
-using ErrorMsg = std::string; // better to use an enum
 
 std::optional<ErrorMsg> parse_pak_file_metadata(PakFileMetaData &,
                                                 std::ifstream &);
 
 std::optional<uint32_t> fread_uint32(std::ifstream &file);
+
+ErrorMsg stream_error_to_errormsg(std::ios &s);
