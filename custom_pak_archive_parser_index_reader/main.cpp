@@ -42,9 +42,24 @@ std::string_view to_string(ErrorMsg error) {
     return "Unknown stream error";
   case ErrorMsg::INVALID_PAK_FILE:
     return "Invalid PAK file (bad magic signature)";
+  case ErrorMsg::Z_LIB_DECOMPRESSION_ERROR:
+    return "zlib decompression failed";
+  case ErrorMsg::UNKNOWN_STORAGE_METHOD:
+    return "Unknown storage method";
   }
 
   return "Unknown error";
+}
+
+std::string_view storage_method_name(StorageMethod method) {
+  switch (method) {
+  case StorageMethod::STORED:
+    return "stored";
+  case StorageMethod::ZLIB:
+    return "zlib";
+  }
+
+  return "unknown";
 }
 
 std::optional<std::size_t> parse_index(std::string_view text) {
@@ -62,9 +77,11 @@ std::optional<std::size_t> parse_index(std::string_view text) {
 
 void print_info(const PakFileMetaData &pak,
                 const std::filesystem::path &archive_path) {
-  std::uint64_t data_size{0};
+  std::uint64_t stored_size{0};
+  std::uint64_t original_size{0};
   for (const auto &entry : pak.toc) {
-    data_size += entry.size;
+    stored_size += entry.stored_size;
+    original_size += entry.original_size;
   }
 
   std::error_code ec;
@@ -81,19 +98,25 @@ void print_info(const PakFileMetaData &pak,
   } else {
     std::cout << "Archive size : " << archive_size << " bytes\n";
   }
-  std::cout << "Data size    : " << data_size << " bytes\n";
+  std::cout << "Original size: " << original_size << " bytes\n";
+  std::cout << "Stored size  : " << stored_size << " bytes\n";
 }
 
 void print_files(const PakFileMetaData &pak) {
   std::cout << "\n"
             << std::right << std::setw(5) << "INDEX" << "  " << std::setw(10)
-            << "SIZE" << "  " << std::setw(10) << "OFFSET" << "  NAME\n";
+            << "SIZE" << "  " << std::setw(10) << "STORED" << "  "
+            << std::left << std::setw(8) << "METHOD" << std::right << "  "
+            << std::setw(10) << "OFFSET" << "  NAME\n";
 
   for (std::size_t i{0}; i < pak.toc.size(); ++i) {
     const auto &entry = pak.toc[i];
     std::cout << std::right << std::setw(5) << i << "  " << std::setw(10)
-              << entry.size << "  " << std::setw(10) << entry.offset << "  "
-              << entry.filename << "\n";
+              << entry.original_size << "  " << std::setw(10)
+              << entry.stored_size << "  " << std::left << std::setw(8)
+              << storage_method_name(entry.method) << std::right << "  "
+              << std::setw(10) << entry.offset << "  " << entry.filename
+              << "\n";
   }
 }
 
@@ -112,8 +135,10 @@ int extract_file(const PakFileMetaData &pak, std::ifstream &archive,
   }
 
   const auto &entry = pak.toc[index];
-  std::cout << "Extracted '" << entry.filename << "' (" << entry.size
-            << " bytes) to '" << output_path.string() << "'\n";
+  std::cout << "Extracted '" << entry.filename << "' ("
+            << entry.original_size << " bytes, " << entry.stored_size
+            << " stored, " << storage_method_name(entry.method) << ") to '"
+            << output_path.string() << "'\n";
   return EXIT_SUCCESS;
 }
 

@@ -8,11 +8,15 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <iterator>
+#include <sstream>
 #include <string>
+#include <string_view>
 #include <system_error>
 #include <utility>
 #include <vector>
+#include <zlib.h>
 
 namespace {
 
@@ -61,6 +65,28 @@ private:
 struct FileSpec {
   std::string name;
   std::string data;
+  bool compress{false};
+};
+
+class MuteCerr {
+public:
+  MuteCerr() : old_{std::cerr.rdbuf(sink_.rdbuf())} {}
+  ~MuteCerr() { std::cerr.rdbuf(old_); }
+
+  MuteCerr(const MuteCerr &) = delete;
+  MuteCerr &operator=(const MuteCerr &) = delete;
+
+private:
+  std::ostringstream sink_;
+  std::streambuf *old_;
+};
+
+struct StoredFile {
+  std::string name;
+  std::vector<std::uint8_t> payload;
+  std::uint32_t stored_size{};
+  std::uint32_t original_size{};
+  StorageMethod method{StorageMethod::STORED};
 };
 
 void append_u32(std::vector<std::uint8_t> &bytes, std::uint32_t value) {
@@ -70,27 +96,60 @@ void append_u32(std::vector<std::uint8_t> &bytes, std::uint32_t value) {
   bytes.push_back(static_cast<std::uint8_t>((value >> 24) & 0xFF));
 }
 
+std::vector<std::uint8_t> zlib_compress(std::string_view data) {
+  uLongf compressed_size = compressBound(static_cast<uLong>(data.size()));
+  std::vector<std::uint8_t> compressed(compressed_size);
+
+  const int result =
+      compress2(compressed.data(), &compressed_size,
+                reinterpret_cast<const Bytef *>(data.data()),
+                static_cast<uLong>(data.size()), 9);
+  REQUIRE(result == Z_OK);
+
+  compressed.resize(compressed_size);
+  return compressed;
+}
+
 std::vector<std::uint8_t> make_pak(const std::vector<FileSpec> &files) {
+  std::vector<StoredFile> stored_files;
+  std::uint32_t toc_size{0};
+
+  for (const auto &file : files) {
+    StoredFile entry{};
+    entry.name = file.name;
+    entry.original_size = static_cast<std::uint32_t>(file.data.size());
+
+    if (file.compress) {
+      entry.payload = zlib_compress(file.data);
+      entry.method = StorageMethod::ZLIB;
+    } else {
+      entry.payload.assign(file.data.begin(), file.data.end());
+      entry.method = StorageMethod::STORED;
+    }
+
+    entry.stored_size = static_cast<std::uint32_t>(entry.payload.size());
+    toc_size += 1 + static_cast<std::uint32_t>(file.name.size()) + 4 + 4 + 4 + 1;
+    stored_files.push_back(std::move(entry));
+  }
+
   std::vector<std::uint8_t> bytes;
   bytes.insert(bytes.end(), PAK_MAGIC_SIGNATURE.begin(),
                PAK_MAGIC_SIGNATURE.end());
-  append_u32(bytes, static_cast<std::uint32_t>(files.size()));
+  append_u32(bytes, static_cast<std::uint32_t>(stored_files.size()));
 
-  std::uint32_t offset{8};
-  for (const auto &file : files) {
-    offset += 1 + static_cast<std::uint32_t>(file.name.size()) + 4 + 4;
-  }
-
-  for (const auto &file : files) {
-    bytes.push_back(static_cast<std::uint8_t>(file.name.size()));
-    bytes.insert(bytes.end(), file.name.begin(), file.name.end());
+  std::uint32_t offset{8 + toc_size};
+  for (const auto &entry : stored_files) {
+    bytes.push_back(static_cast<std::uint8_t>(entry.name.size()));
+    bytes.insert(bytes.end(), entry.name.begin(), entry.name.end());
     append_u32(bytes, offset);
-    append_u32(bytes, static_cast<std::uint32_t>(file.data.size()));
-    offset += static_cast<std::uint32_t>(file.data.size());
+    append_u32(bytes, entry.stored_size);
+    append_u32(bytes, entry.original_size);
+    bytes.push_back(static_cast<std::uint8_t>(entry.method));
+    offset += entry.stored_size;
   }
 
-  for (const auto &file : files) {
-    bytes.insert(bytes.end(), file.data.begin(), file.data.end());
+  for (const auto &entry : stored_files) {
+    bytes.insert(bytes.end(), entry.payload.begin(), entry.payload.end());
   }
 
   return bytes;
@@ -240,12 +299,16 @@ TEST_CASE("parse_pak_file_metadata reads the header and table of contents") {
   REQUIRE(pak.toc.size() == 2);
 
   CHECK(pak.toc[0].filename == "a.txt");
-  CHECK(pak.toc[0].offset == 36);
-  CHECK(pak.toc[0].size == 3);
+  CHECK(pak.toc[0].offset == 46);
+  CHECK(pak.toc[0].stored_size == 3);
+  CHECK(pak.toc[0].original_size == 3);
+  CHECK(pak.toc[0].method == StorageMethod::STORED);
 
   CHECK(pak.toc[1].filename == "b.bin");
-  CHECK(pak.toc[1].offset == 39);
-  CHECK(pak.toc[1].size == 4);
+  CHECK(pak.toc[1].offset == 49);
+  CHECK(pak.toc[1].stored_size == 4);
+  CHECK(pak.toc[1].original_size == 4);
+  CHECK(pak.toc[1].method == StorageMethod::STORED);
 }
 
 TEST_CASE("parse_pak_file_metadata accepts an empty archive") {
@@ -277,6 +340,31 @@ TEST_CASE("parse_pak_file_metadata reports a truncated table of contents") {
   CHECK(*error == ErrorMsg::INCOMPLETE_DATA_EOF_REACHED);
 }
 
+TEST_CASE("parse_pak_file_metadata rejects an unknown storage method") {
+  const std::string name{"a.txt"};
+  std::vector<std::uint8_t> bytes{PAK_MAGIC_SIGNATURE.begin(),
+                                  PAK_MAGIC_SIGNATURE.end()};
+  append_u32(bytes, 1);
+  bytes.push_back(static_cast<std::uint8_t>(name.size()));
+  bytes.insert(bytes.end(), name.begin(), name.end());
+  append_u32(bytes, 0);
+  append_u32(bytes, 0);
+  append_u32(bytes, 0);
+  bytes.push_back(9);
+
+  TempFile file{bytes};
+  auto in = file.open_input();
+  REQUIRE(in.is_open());
+
+  PakFileMetaData pak;
+  MuteCerr muted;
+  const auto error = parse_pak_file_metadata(pak, in);
+
+  REQUIRE(error.has_value());
+  CHECK(*error == ErrorMsg::UNKNOWN_STORAGE_METHOD);
+  CHECK(pak.toc.empty());
+}
+
 TEST_CASE("parse_pak_file_metadata supports filenames up to 255 bytes") {
   const std::string name(200, 'n');
   TempFile file{make_pak({{name, "x"}})};
@@ -289,7 +377,9 @@ TEST_CASE("parse_pak_file_metadata supports filenames up to 255 bytes") {
   REQUIRE_FALSE(error.has_value());
   REQUIRE(pak.toc.size() == 1);
   CHECK(pak.toc[0].filename == name);
-  CHECK(pak.toc[0].size == 1);
+  CHECK(pak.toc[0].stored_size == 1);
+  CHECK(pak.toc[0].original_size == 1);
+  CHECK(pak.toc[0].method == StorageMethod::STORED);
 }
 
 TEST_CASE("parse_pak_file_metadata replaces an existing table of contents") {
@@ -310,6 +400,95 @@ TEST_CASE("parse_pak_file_metadata replaces an existing table of contents") {
 
   REQUIRE(pak.toc.size() == 1);
   CHECK(pak.toc[0].filename == "a.txt");
+}
+
+TEST_CASE("parse_pak_file_metadata records stored and original sizes") {
+  std::string data;
+  for (std::size_t i{0}; i < 200; ++i) {
+    data += "compress me please ";
+  }
+
+  TempFile file{make_pak({{"packed.txt", data, true}})};
+  auto in = file.open_input();
+  REQUIRE(in.is_open());
+
+  PakFileMetaData pak;
+  const auto error = parse_pak_file_metadata(pak, in);
+
+  REQUIRE_FALSE(error.has_value());
+  REQUIRE(pak.toc.size() == 1);
+  CHECK(pak.toc[0].offset == 32);
+  CHECK(pak.toc[0].stored_size < pak.toc[0].original_size);
+  CHECK(pak.toc[0].original_size == data.size());
+  CHECK(pak.toc[0].method == StorageMethod::ZLIB);
+}
+
+TEST_CASE("get_file_content decompresses a compressed entry") {
+  std::string data;
+  for (std::size_t i{0}; i < 200; ++i) {
+    data += "compress me please ";
+  }
+
+  TempFile input_file{make_pak({{"packed.txt", data, true}})};
+  TempFile output_file;
+  auto in = input_file.open_input();
+  auto out = output_file.open_output();
+  REQUIRE(in.is_open());
+  REQUIRE(out.is_open());
+
+  PakFileMetaData pak;
+  REQUIRE_FALSE(parse_pak_file_metadata(pak, in).has_value());
+  REQUIRE_FALSE(pak.get_file_content(in, out, 0).has_value());
+
+  out.close();
+  CHECK(output_file.read_all() == data);
+}
+
+TEST_CASE("get_file_content reports a zlib decompression error") {
+  const std::string name{"bad.bin"};
+  const std::string payload{"nope"};
+
+  std::vector<std::uint8_t> bytes{PAK_MAGIC_SIGNATURE.begin(),
+                                  PAK_MAGIC_SIGNATURE.end()};
+  append_u32(bytes, 1);
+  bytes.push_back(static_cast<std::uint8_t>(name.size()));
+  bytes.insert(bytes.end(), name.begin(), name.end());
+  append_u32(bytes, 8 + 1 + static_cast<std::uint32_t>(name.size()) + 4 + 4 +
+                       4 + 1);
+  append_u32(bytes, static_cast<std::uint32_t>(payload.size()));
+  append_u32(bytes, 1024);
+  bytes.push_back(static_cast<std::uint8_t>(StorageMethod::ZLIB));
+  bytes.insert(bytes.end(), payload.begin(), payload.end());
+
+  TempFile input_file{bytes};
+  TempFile output_file;
+  auto in = input_file.open_input();
+  auto out = output_file.open_output();
+  REQUIRE(in.is_open());
+  REQUIRE(out.is_open());
+
+  PakFileMetaData pak;
+  REQUIRE_FALSE(parse_pak_file_metadata(pak, in).has_value());
+
+  MuteCerr muted;
+  CHECK(pak.get_file_content(in, out, 0) ==
+        ErrorMsg::Z_LIB_DECOMPRESSION_ERROR);
+}
+
+TEST_CASE("get_file_content extracts an empty entry") {
+  TempFile input_file{make_pak({{"empty.txt", ""}})};
+  TempFile output_file;
+  auto in = input_file.open_input();
+  auto out = output_file.open_output();
+  REQUIRE(in.is_open());
+  REQUIRE(out.is_open());
+
+  PakFileMetaData pak;
+  REQUIRE_FALSE(parse_pak_file_metadata(pak, in).has_value());
+  REQUIRE_FALSE(pak.get_file_content(in, out, 0).has_value());
+
+  out.close();
+  CHECK(output_file.read_all().empty());
 }
 
 TEST_CASE("get_file_content rejects an out-of-range index") {
@@ -377,14 +556,14 @@ TEST_CASE("get_file_content extracts an entry into the output stream") {
   }
 }
 
-TEST_CASE("get_file_content copies blobs larger than the read buffer") {
+TEST_CASE("get_file_content decompresses a large entry") {
   std::string blob;
   blob.reserve(5000);
   for (std::size_t i{0}; i < 5000; ++i) {
     blob.push_back(static_cast<char>('a' + (i % 26)));
   }
 
-  TempFile input_file{make_pak({{"large.bin", blob}})};
+  TempFile input_file{make_pak({{"large.bin", blob, true}})};
   TempFile output_file;
   auto in = input_file.open_input();
   auto out = output_file.open_output();
