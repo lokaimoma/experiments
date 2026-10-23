@@ -31,7 +31,8 @@ struct PakHeader {
 
 struct TOCEntry { // Entry in Table of Content
     uint32_t offset{};
-    uint32_t size{};
+    uint32_t compressed_size{};
+    uint32_t uncompressed_size{};
     std::string filename{};
 };
 

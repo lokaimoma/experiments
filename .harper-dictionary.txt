@@ -2,3 +2,4 @@ PAK1
 e.
 seekg
 uint32
+zlib

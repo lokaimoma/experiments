@@ -21,7 +21,8 @@ access stream navigation.
 - Filename Length (a byte): Size of the filename
 - Filename (variable bytes): Variable-size character array storing the name/path of the archived file.
 - File Offset (4 bytes, Little-Endian): The absolute byte offset from the start of the file where the data blob begins.
-- File Size (4 bytes, Little-Endian): The exact length of the file data blob in bytes.
+- File Size (uncompressed_size) (4 bytes, Little-Endian): The exact length of the file data blob in bytes.
+- File Size (compressed_size) (4 bytes, Little-Endian): The length of the file data blob in bytes when compressed with zlib compression.
 
 ## Data Blobs Region
 
