@@ -5,6 +5,5 @@ enable_testing()
 
 add_subdirectory(pooled_arena_allocator)
 add_subdirectory(hashtable)
-add_subdirectory(http1.1_parser)
 add_subdirectory(tga_image_header_reader)
 add_subdirectory(custom_pak_archive_parser_index_reader)
